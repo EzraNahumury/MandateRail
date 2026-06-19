@@ -134,7 +134,7 @@ export default function Landing() {
             ))}
           </nav>
           <Link href="/" className="flex items-center justify-center gap-2">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-neutral-900 text-xs font-bold text-white">M</span>
+            <Image src="/logo.png" alt="MandateRail logo" width={28} height={28} className="h-7 w-7 rounded-full object-cover ring-1 ring-neutral-200" />
             <span className="text-base font-semibold tracking-tight">{project.name}</span>
           </Link>
           <div className="flex items-center justify-end gap-2">
@@ -420,7 +420,7 @@ export default function Landing() {
       <footer className="border-t border-neutral-200">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6 lg:px-8">
           <div className="flex items-center gap-2">
-            <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-900 text-[10px] font-bold text-white">M</span>
+            <Image src="/logo.png" alt="MandateRail logo" width={24} height={24} className="h-6 w-6 rounded-full object-cover ring-1 ring-neutral-200" />
             <span className="text-sm font-semibold">{project.name}</span>
             <span className="hidden text-xs text-neutral-500 sm:inline">— {project.tagline}</span>
           </div>
