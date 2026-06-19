@@ -57,14 +57,14 @@ const WfFunded = () => svg(<><circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.
 const WfAudit = () => svg(<><rect x="6" y="4" width="12" height="16" rx="2" /><path d="M9 4h6M9 11l1.5 1.5L13 10M9 16h6" /></>);
 
 const WF_META = [
-  { icon: WfIssue, bar: "bg-sky-400", dot: "bg-sky-500" },
-  { icon: WfSealed, bar: "bg-violet-400", dot: "bg-violet-500" },
-  { icon: WfAtomic, bar: "bg-emerald-400", dot: "bg-emerald-500" },
-  { icon: WfOverCap, bar: "bg-amber-400", dot: "bg-amber-500" },
-  { icon: WfOffList, bar: "bg-rose-400", dot: "bg-rose-500" },
-  { icon: WfRevoke, bar: "bg-red-400", dot: "bg-red-500" },
-  { icon: WfFunded, bar: "bg-teal-400", dot: "bg-teal-500" },
-  { icon: WfAudit, bar: "bg-indigo-400", dot: "bg-indigo-500" },
+  { icon: WfIssue, dot: "bg-sky-500", chip: "bg-sky-50 text-sky-600 ring-sky-100" },
+  { icon: WfSealed, dot: "bg-violet-500", chip: "bg-violet-50 text-violet-600 ring-violet-100" },
+  { icon: WfAtomic, dot: "bg-emerald-500", chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  { icon: WfOverCap, dot: "bg-amber-500", chip: "bg-amber-50 text-amber-600 ring-amber-100" },
+  { icon: WfOffList, dot: "bg-rose-500", chip: "bg-rose-50 text-rose-600 ring-rose-100" },
+  { icon: WfRevoke, dot: "bg-red-500", chip: "bg-red-50 text-red-600 ring-red-100" },
+  { icon: WfFunded, dot: "bg-teal-500", chip: "bg-teal-50 text-teal-600 ring-teal-100" },
+  { icon: WfAudit, dot: "bg-indigo-500", chip: "bg-indigo-50 text-indigo-600 ring-indigo-100" },
 ];
 
 const HEADING = "text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl";
@@ -142,7 +142,6 @@ function HeroCard({ c }: { c: (typeof heroCards)[number] }) {
 export default function Landing() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [tab, setTab] = useState(explore.tabs[0].key);
-  const [filter, setFilter] = useState(workflows.filters[0]);
   const featRef = useRef<HTMLDivElement>(null);
   const activeTab = explore.tabs.find((t) => t.key === tab) ?? explore.tabs[0];
   const scrollFeat = (dir: number) => featRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
@@ -318,50 +317,28 @@ export default function Landing() {
         </section>
 
         {/* ---------------- Key Workflows ---------------- */}
-        <section className="py-14">
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <ScrollFloat textClassName={HEADING}>{workflows.title}</ScrollFloat>
-            <div className="flex gap-1 rounded-full border border-neutral-300 bg-white p-1">
-              {workflows.filters.map((f) => (
-                <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-semibold transition ${filter === f ? "bg-neutral-900 text-white" : "text-neutral-500 hover:text-neutral-900"}`}>{f}</button>
-              ))}
-            </div>
-          </div>
+        <section className="py-12">
+          <ScrollFloat containerClassName="mb-6" textClassName={HEADING}>{workflows.title}</ScrollFloat>
           <Reveal>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {workflows.items.map((w, i) => {
                 const m = WF_META[i % WF_META.length];
                 const Icon = m.icon;
                 return (
-                  <GlareHover
+                  <div
                     key={w.name}
-                    background="#ffffff"
-                    borderColor="#e5e5e5"
-                    borderRadius="0.9rem"
-                    glareColor="#000000"
-                    glareOpacity={0.05}
-                    glareSize={300}
-                    transitionDuration={750}
-                    className="group transition hover:-translate-y-0.5 hover:shadow-md"
+                    className="group rounded-2xl border border-neutral-200 bg-white p-4 transition duration-300 hover:-translate-y-1 hover:border-neutral-300 hover:shadow-lg"
                   >
-                    <span className={`absolute inset-y-0 left-0 w-1 ${m.bar} opacity-50 transition-opacity group-hover:opacity-100`} />
-                    <div className="flex items-start gap-4 p-4 pl-6">
-                      <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-neutral-900 text-white shadow-sm transition duration-300 group-hover:-rotate-3 group-hover:scale-110">
-                        <Icon />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <h3 className="text-[15px] font-semibold tracking-tight text-neutral-900">{w.name}</h3>
-                          <span className="font-mono text-xs text-neutral-300">{String(i + 1).padStart(2, "0")}</span>
-                        </div>
-                        <p className="mt-0.5 text-sm leading-relaxed text-neutral-500">{w.desc}</p>
-                        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700 ring-1 ring-neutral-200">
-                          <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
-                          {w.metric}
-                        </span>
-                      </div>
+                    <span className={`grid h-10 w-10 place-items-center rounded-xl ring-1 transition duration-300 group-hover:scale-110 group-hover:-rotate-3 ${m.chip}`}>
+                      <Icon />
+                    </span>
+                    <h3 className="mt-3 text-sm font-semibold tracking-tight text-neutral-900">{w.name}</h3>
+                    <p className="mt-1 text-xs leading-snug text-neutral-500">{w.desc}</p>
+                    <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                      <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+                      {w.metric}
                     </div>
-                  </GlareHover>
+                  </div>
                 );
               })}
             </div>
