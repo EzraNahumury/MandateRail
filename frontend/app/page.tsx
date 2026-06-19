@@ -43,6 +43,30 @@ const IconLock = () => (
   </svg>
 );
 
+/* ---------- workflow icons (one per row) ---------- */
+const svg = (children: ReactNode) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+);
+const WfIssue = () => svg(<><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" /><path d="M12 11v6M9 14h6" /></>);
+const WfSealed = () => svg(<><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>);
+const WfAtomic = () => svg(<path d="M13 2 4 14h7l-1 8 10-12h-7l1-8z" />);
+const WfOverCap = () => svg(<><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6l-8-3z" /><path d="m9.5 9.5 5 5M14.5 9.5l-5 5" /></>);
+const WfOffList = () => svg(<><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6 18.4 18.4" /></>);
+const WfRevoke = () => svg(<><path d="M12 3v9" /><path d="M6.6 6.6a8 8 0 1 0 10.8 0" /></>);
+const WfFunded = () => svg(<><circle cx="12" cy="12" r="9" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>);
+const WfAudit = () => svg(<><rect x="6" y="4" width="12" height="16" rx="2" /><path d="M9 4h6M9 11l1.5 1.5L13 10M9 16h6" /></>);
+
+const WF_META = [
+  { icon: WfIssue, bar: "bg-sky-400", dot: "bg-sky-500" },
+  { icon: WfSealed, bar: "bg-violet-400", dot: "bg-violet-500" },
+  { icon: WfAtomic, bar: "bg-emerald-400", dot: "bg-emerald-500" },
+  { icon: WfOverCap, bar: "bg-amber-400", dot: "bg-amber-500" },
+  { icon: WfOffList, bar: "bg-rose-400", dot: "bg-rose-500" },
+  { icon: WfRevoke, bar: "bg-red-400", dot: "bg-red-500" },
+  { icon: WfFunded, bar: "bg-teal-400", dot: "bg-teal-500" },
+  { icon: WfAudit, bar: "bg-indigo-400", dot: "bg-indigo-500" },
+];
+
 const HEADING = "text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl";
 
 /* highlight the word "ledger" with a brand marker */
@@ -304,18 +328,42 @@ export default function Landing() {
             </div>
           </div>
           <Reveal>
-            <div className="grid gap-3 md:grid-cols-2">
-              {workflows.items.map((w, i) => (
-                <div key={w.name} className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3 transition hover:-translate-y-0.5 hover:border-neutral-400 hover:shadow-sm">
-                  <span className="w-5 text-sm font-semibold text-neutral-400">{i + 1}</span>
-                  <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-neutral-900 text-xs font-bold text-white">{w.name.slice(0, 1)}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold">{w.name}</div>
-                    <div className="truncate text-xs text-neutral-500">{w.desc}</div>
-                  </div>
-                  <span className="hidden flex-shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700 sm:inline-block">{w.metric}</span>
-                </div>
-              ))}
+            <div className="grid gap-4 md:grid-cols-2">
+              {workflows.items.map((w, i) => {
+                const m = WF_META[i % WF_META.length];
+                const Icon = m.icon;
+                return (
+                  <GlareHover
+                    key={w.name}
+                    background="#ffffff"
+                    borderColor="#e5e5e5"
+                    borderRadius="0.9rem"
+                    glareColor="#000000"
+                    glareOpacity={0.05}
+                    glareSize={300}
+                    transitionDuration={750}
+                    className="group transition hover:-translate-y-0.5 hover:shadow-md"
+                  >
+                    <span className={`absolute inset-y-0 left-0 w-1 ${m.bar} opacity-50 transition-opacity group-hover:opacity-100`} />
+                    <div className="flex items-start gap-4 p-4 pl-6">
+                      <span className="grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl bg-neutral-900 text-white shadow-sm transition duration-300 group-hover:-rotate-3 group-hover:scale-110">
+                        <Icon />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3 className="text-[15px] font-semibold tracking-tight text-neutral-900">{w.name}</h3>
+                          <span className="font-mono text-xs text-neutral-300">{String(i + 1).padStart(2, "0")}</span>
+                        </div>
+                        <p className="mt-0.5 text-sm leading-relaxed text-neutral-500">{w.desc}</p>
+                        <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-neutral-50 px-2.5 py-1 text-[11px] font-medium text-neutral-700 ring-1 ring-neutral-200">
+                          <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
+                          {w.metric}
+                        </span>
+                      </div>
+                    </div>
+                  </GlareHover>
+                );
+              })}
             </div>
           </Reveal>
         </section>
