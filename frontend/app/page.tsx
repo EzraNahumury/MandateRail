@@ -1,354 +1,348 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { StateSnapshot, CommitMode } from "./lib/types";
-import { fetchState, postCommit, postIssue, postRevoke } from "./lib/api";
-import { Button, Card, Chip, MoneyGauge, money, Stat } from "./components/ui";
+import Link from "next/link";
+import { useRef, useState } from "react";
+import {
+  project,
+  nav,
+  hero,
+  heroCards,
+  ecosystem,
+  useCases,
+  featured,
+  workflows,
+  explore,
+  problemSolution,
+  howItWorks,
+} from "./components/landing/content";
 
-type LogKind = "ok" | "reject" | "error" | "info";
-interface LogEntry {
-  id: number;
-  time: string;
-  kind: LogKind;
-  text: string;
+/* ---------- tiny inline icons ---------- */
+const IconSearch = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" />
+  </svg>
+);
+const IconMenu = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+);
+const IconArrow = ({ dir = 1 }: { dir?: number }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+    style={{ transform: dir < 0 ? "rotate(180deg)" : undefined }}>
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  </svg>
+);
+const IconLock = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+  </svg>
+);
+
+/* ---------- tone gradients (muted, institutional — not neon) ---------- */
+const toneGrad: Record<string, string> = {
+  indigo: "from-slate-800 to-indigo-950",
+  slate: "from-neutral-800 to-neutral-600",
+  emerald: "from-emerald-800 to-teal-950",
+  violet: "from-slate-800 to-violet-950",
+};
+
+/* ---------- circular rotating stamp ---------- */
+function Stamp() {
+  return (
+    <div className="absolute -left-5 top-1 z-40 hidden h-28 w-28 sm:block">
+      <svg viewBox="0 0 120 120" className="h-full w-full animate-[spin_20s_linear_infinite]">
+        <defs>
+          <path id="stampPath" d="M60,60 m-42,0 a42,42 0 1,1 84,0 a42,42 0 1,1 -84,0" />
+        </defs>
+        <circle cx="60" cy="60" r="58" fill="white" stroke="#111" strokeWidth="1" />
+        <text fontSize="9.5" fill="#111" letterSpacing="2.5" fontWeight="600">
+          <textPath href="#stampPath">CONFIDENTIAL · LEDGER-ENFORCED · CANTON · </textPath>
+        </text>
+      </svg>
+      <span className="absolute inset-0 grid place-items-center">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-neutral-900 text-white">
+          <IconLock />
+        </span>
+      </span>
+    </div>
+  );
 }
 
-const ROLES = [
-  { key: "cockpit", label: "Cockpit (all)" },
-  { key: "treasurer", label: "Treasurer" },
-  { key: "agent", label: "Buyer Agent" },
-  { key: "supplier", label: "Supplier A" },
-] as const;
-type Role = (typeof ROLES)[number]["key"];
-
-export default function Home() {
-  const [snap, setSnap] = useState<StateSnapshot | null>(null);
-  const [connected, setConnected] = useState(false);
-  const [budgetMax, setBudgetMax] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [log, setLog] = useState<LogEntry[]>([]);
-  const [session, setSession] = useState<Role | null>(null);
-  const logId = useRef(0);
-
-  const addLog = useCallback((kind: LogKind, text: string) => {
-    const time = new Date().toLocaleTimeString("en-US", { hour12: false });
-    setLog((l) => [{ id: ++logId.current, time, kind, text }, ...l].slice(0, 12));
-  }, []);
-
-  const refresh = useCallback(async () => {
-    try {
-      const s = await fetchState();
-      setSnap(s);
-      setConnected(true);
-      const rem = s.treasurer.mandate ? Number(s.treasurer.mandate.remainingBudget) : 0;
-      setBudgetMax((m) => Math.max(m, rem));
-    } catch {
-      setConnected(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const initial = setTimeout(refresh, 0);
-    const t = setInterval(refresh, 1500);
-    return () => {
-      clearTimeout(initial);
-      clearInterval(t);
-    };
-  }, [refresh]);
-
-  const run = useCallback(
-    async (fn: () => Promise<void>) => {
-      setBusy(true);
-      try {
-        await fn();
-      } finally {
-        setBusy(false);
-        refresh();
-      }
-    },
-    [refresh],
+function HeroCard({ c, className }: { c: (typeof heroCards)[number]; className: string }) {
+  return (
+    <div
+      className={`absolute w-56 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-xl transition-transform duration-500 hover:scale-[1.03] ${className}`}
+    >
+      <div className={`relative h-32 bg-gradient-to-br ${toneGrad[c.tone]}`}>
+        <span className="absolute left-3 top-3 text-[10px] font-medium uppercase tracking-wider text-white/70">{c.kind}</span>
+        <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-bold text-neutral-900">{c.badge}</span>
+      </div>
+      <div className="space-y-1.5 p-3">
+        <div className="text-sm font-semibold text-neutral-900">{c.title}</div>
+        <div className="text-[11px] text-neutral-500">{c.meta}</div>
+        <div className="flex items-center justify-between pt-1">
+          <span className="font-mono text-sm font-bold text-neutral-900">{c.amount}</span>
+          <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-100 text-neutral-500"><IconLock /></span>
+        </div>
+      </div>
+    </div>
   );
+}
 
-  const onIssue = () =>
-    run(async () => {
-      const r = await postIssue();
-      addLog(r.ok ? "info" : "error", r.ok ? "Treasurer issued a fresh $50,000 mandate." : `Issue failed: ${r.error}`);
-      setBudgetMax(0);
-    });
-
-  const onRevoke = () =>
-    run(async () => {
-      const r = await postRevoke();
-      addLog(
-        r.ok ? "info" : "error",
-        r.ok ? "Treasurer REVOKED the mandate — the agent is now powerless." : `Revoke failed: ${r.error}`,
-      );
-    });
-
-  const onCommit = (mode: CommitMode) =>
-    run(async () => {
-      const r = await postCommit(mode);
-      if (r.ok)
-        addLog("ok", `COMMIT OK — $${money(r.amount)} to ${r.supplier}, settled atomically (mandate debited + PO + cash).`);
-      else if (r.rejected)
-        addLog("reject", `REJECTED BY THE LEDGER — "${r.reason}". Nothing debited, no PO, no payment.`);
-      else addLog("error", r.error ?? "commit error");
-    });
-
-  const mandate = snap?.treasurer.mandate ?? null;
-  const supplier = snap?.supplier;
-  const agent = snap?.agent;
-
-  // --- the three party views (rendered in both cockpit and single-login layouts) ---
-
-  const treasurerCard = (
-    <Card title="Treasurer Console" subtitle="issuer" accent="sky">
-      {mandate ? (
-        <>
-          <MoneyGauge
-            remaining={Number(mandate.remainingBudget)}
-            total={budgetMax || Number(mandate.remainingBudget)}
-          />
-          <div className="space-y-2 border-t border-slate-800 pt-3">
-            <Stat label="Per-transaction cap" value={`$${money(mandate.perTxCap)}`} mono />
-            <Stat label="Category" value={mandate.category} />
-            <Stat label="Expires" value={new Date(mandate.expiry).toLocaleDateString()} />
-          </div>
-          <div>
-            <div className="mb-1.5 text-xs text-slate-400">Approved suppliers</div>
-            <div className="flex flex-wrap gap-1.5">
-              {mandate.approvedSuppliers.map((s) => (
-                <Chip key={s} tone="emerald">
-                  {s}
-                </Chip>
-              ))}
-            </div>
-          </div>
-        </>
-      ) : (
-        <p className="text-sm text-slate-500">No active mandate. Issue one to begin.</p>
+function SectionHead({ title, action }: { title: string; action?: string }) {
+  return (
+    <div className="mb-6 flex items-end justify-between">
+      <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{title}</h2>
+      {action && (
+        <a href="#" className="flex items-center gap-1 text-sm text-neutral-500 hover:text-neutral-900">
+          {action} <IconArrow />
+        </a>
       )}
-      <div className="mt-auto flex gap-2 pt-2">
-        <Button variant="ghost" onClick={onIssue} disabled={busy}>
-          {mandate ? "Reset mandate" : "Issue mandate"}
-        </Button>
-        <Button variant="danger" onClick={onRevoke} disabled={busy || !mandate}>
-          Revoke
-        </Button>
-      </div>
-    </Card>
+    </div>
   );
+}
 
-  const agentCard = (
-    <Card title="Buyer Agent" subtitle="runs the sealed auction" accent="violet">
-      <div className="rounded-lg bg-slate-950/50 p-3 ring-1 ring-slate-800">
-        <div className="mb-2 text-xs text-slate-400">Sealed quotes (rivals can&apos;t see each other)</div>
-        <div className="space-y-1.5">
-          {agent?.quotes.length ? (
-            agent.quotes.map((q, i) => (
-              <div key={i} className="flex items-center justify-between text-sm">
-                <span className="text-slate-300">{q.supplier}</span>
-                <span className="flex items-center gap-2">
-                  <span className="font-mono text-slate-200">${money(q.price)}</span>
-                  <Chip tone={q.kind === "compliant" ? "emerald" : q.kind === "over-cap" ? "amber" : "red"}>
-                    {q.kind}
-                  </Chip>
-                </span>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-slate-500">No quotes.</p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        <Button variant="primary" onClick={() => onCommit("cheapest")} disabled={busy || !mandate}>
-          Commit cheapest
-        </Button>
-        <Button variant="warn" onClick={() => onCommit("overcap")} disabled={busy || !mandate}>
-          Try over-cap
-        </Button>
-        <Button variant="danger" onClick={() => onCommit("offlist")} disabled={busy || !mandate}>
-          Try off-list
-        </Button>
-      </div>
-
-      <div className="flex-1">
-        <div className="mb-1.5 text-xs text-slate-400">Ledger activity</div>
-        <div className="space-y-1.5">
-          {log.length === 0 && <p className="text-sm text-slate-600">Awaiting actions…</p>}
-          {log.map((e) => (
-            <div
-              key={e.id}
-              className={`rounded-md border-l-2 bg-slate-950/40 px-3 py-2 text-xs ${
-                e.kind === "ok"
-                  ? "border-emerald-500 text-emerald-200"
-                  : e.kind === "reject"
-                    ? "border-red-500 text-red-200"
-                    : e.kind === "error"
-                      ? "border-amber-500 text-amber-200"
-                      : "border-sky-500 text-sky-200"
-              }`}
-            >
-              <span className="mr-2 font-mono text-slate-500">{e.time}</span>
-              {e.text}
-            </div>
-          ))}
-        </div>
-      </div>
-    </Card>
-  );
-
-  const supplierCard = (
-    <Card title={supplier?.label ?? "Supplier A"} subtitle="counterparty" accent="emerald">
-      <div className="rounded-lg bg-slate-950/50 p-3 ring-1 ring-slate-800">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-lg">{supplier && !supplier.canSeeMandate ? "🔒" : "⚠️"}</span>
-          <span className={supplier && !supplier.canSeeMandate ? "text-emerald-300" : "text-amber-300"}>
-            {supplier && !supplier.canSeeMandate ? "Mandate & budget: NOT VISIBLE" : "Mandate visible (unexpected)"}
-          </span>
-        </div>
-        <p className="mt-1 text-[11px] text-slate-500">
-          The cap and remaining budget never reach this node — so you can&apos;t price up to it.
-        </p>
-      </div>
-
-      <Stat label="Your sealed quote" value={supplier?.ownQuote ? `$${money(supplier.ownQuote.price)}` : "—"} mono />
-
-      <div className="mt-auto">
-        {supplier?.purchaseOrder ? (
-          <div className="rounded-xl bg-emerald-500/10 p-4 text-center ring-1 ring-emerald-500/40">
-            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">✓ Authorized + Funded</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-emerald-200">
-              ${money(supplier.purchaseOrder.amount)}
-            </div>
-            <div className="mt-1 text-[11px] text-emerald-400/70">cap &amp; remaining budget: hidden</div>
-          </div>
-        ) : (
-          <div className="rounded-xl bg-slate-950/40 p-4 text-center text-sm text-slate-600 ring-1 ring-slate-800">
-            Awaiting award…
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-
-  const sessionNote: Record<Exclude<Role, "cockpit">, string> = {
-    treasurer: "You hold the mandate authority — issue and revoke. You see the cap and live consumption.",
-    agent: "You can spend only within the encoded mandate. The ledger rejects anything off-policy — not a prompt.",
-    supplier: "You only ever receive your own slice. The cap never reaches your node — find it, you can't.",
-  };
+export default function Landing() {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [tab, setTab] = useState(explore.tabs[0].key);
+  const [filter, setFilter] = useState(workflows.filters[0]);
+  const featRef = useRef<HTMLDivElement>(null);
+  const activeTab = explore.tabs.find((t) => t.key === tab) ?? explore.tabs[0];
+  const scrollFeat = (dir: number) => featRef.current?.scrollBy({ left: dir * 320, behavior: "smooth" });
 
   return (
-    <div className="min-h-full w-full bg-[radial-gradient(60%_50%_at_50%_0%,#0f1b2d_0%,#020617_60%)] text-slate-200">
-      <div className="mx-auto max-w-7xl px-6 py-8">
-        {/* Header */}
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-white">MandateRail</h1>
-              <span className="rounded-md bg-violet-500/15 px-2 py-0.5 text-[11px] font-semibold text-violet-300 ring-1 ring-violet-600/40">
-                on Canton
-              </span>
+    <div className="min-h-screen bg-[#f5f5f3] text-neutral-900">
+      {/* ---------------- Navbar ---------------- */}
+      <header className="sticky top-0 z-50 border-b border-neutral-200/70 bg-[#f5f5f3]/85 backdrop-blur">
+        <div className="mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center gap-4 px-4 py-3 sm:px-6 lg:px-8">
+          <nav className="hidden items-center gap-6 text-sm text-neutral-600 md:flex">
+            {nav.map((n) => (
+              <a key={n.label} href={n.href} className="transition hover:text-neutral-900">{n.label}</a>
+            ))}
+          </nav>
+          <Link href="/" className="flex items-center justify-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-neutral-900 text-xs font-bold text-white">M</span>
+            <span className="text-base font-semibold tracking-tight">{project.name}</span>
+          </Link>
+          <div className="flex items-center justify-end gap-2">
+            <button className="grid h-9 w-9 place-items-center rounded-full border border-neutral-200 bg-white text-neutral-600 transition hover:text-neutral-900" aria-label="Search">
+              <IconSearch />
+            </button>
+            <Link href={project.demoHref} className="hidden rounded-full border border-neutral-900 px-4 py-1.5 text-sm font-medium transition hover:bg-neutral-900 hover:text-white sm:inline-block">
+              Demo
+            </Link>
+            <button onClick={() => setMenuOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-full bg-neutral-900 text-white md:hidden" aria-label="Menu">
+              <IconMenu />
+            </button>
+          </div>
+        </div>
+        {menuOpen && (
+          <div className="border-t border-neutral-200 bg-[#f5f5f3] md:hidden">
+            <div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3">
+              {nav.map((n) => (
+                <a key={n.label} href={n.href} onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2 text-sm text-neutral-700 transition hover:bg-white">{n.label}</a>
+              ))}
+              <Link href={project.demoHref} className="rounded-lg bg-neutral-900 px-3 py-2 text-center text-sm font-medium text-white">Launch the demo</Link>
             </div>
-            <p className="mt-1 text-sm text-slate-400">
-              Confidential, ledger-enforced spend mandates for agentic procurement.{" "}
-              <span className="text-slate-300">Trust the ledger, not the model.</span>
-            </p>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-400" : "bg-red-500"}`} />
-            <span className={connected ? "text-emerald-300" : "text-red-300"}>
-              {connected ? "ledger live" : "disconnected — is `daml start` running?"}
-            </span>
-          </div>
-        </header>
+        )}
+      </header>
 
-        {session === null ? (
-          /* Login screen — Canton identity, no browser wallet */
-          <div className="grid min-h-[58vh] place-items-center">
-            <div className="w-full max-w-md rounded-2xl bg-slate-900/70 p-6 ring-1 ring-slate-800">
-              <h2 className="text-lg font-semibold text-white">Sign in</h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                Canton has no browser wallet. Choose the <span className="text-slate-300">party</span> (identity) to act
-                as — auth is a per-party JWT minted server-side (enterprise SSO/OIDC in production).
-              </p>
-              <div className="mt-4 space-y-2">
-                {(
-                  [
-                    ["treasurer", "Treasurer Console", "issuer · holds mandate authority"],
-                    ["agent", "Buyer Agent", "autonomous buyer"],
-                    ["supplier", "Supplier A", "counterparty"],
-                  ] as const
-                ).map(([key, title, sub]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSession(key)}
-                    className="flex w-full items-center justify-between rounded-lg bg-slate-800 px-4 py-3 text-left transition hover:bg-slate-700"
-                  >
-                    <span className="text-sm font-semibold text-slate-100">{title}</span>
-                    <span className="text-[11px] text-slate-400">{sub}</span>
-                  </button>
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        {/* ---------------- Hero ---------------- */}
+        <section id="product" className="grid items-center gap-10 py-12 lg:grid-cols-2 lg:py-20">
+          <div className="animate-fade-up">
+            <span className="inline-flex items-center gap-2 rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Track · {project.track}
+            </span>
+            <h1 className="mt-5 text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl lg:text-6xl">
+              {hero.headline.map((line, i) => (
+                <span key={i} className="block">{line}</span>
+              ))}
+            </h1>
+            <p className="mt-5 max-w-xl text-base leading-relaxed text-neutral-600">{hero.sub}</p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link href={hero.primaryCta.href} className="rounded-full bg-neutral-900 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-neutral-800">
+                {hero.primaryCta.label}
+              </Link>
+              <a href={hero.secondaryCta.href} className="rounded-full border border-neutral-900 bg-transparent px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:-translate-y-0.5 hover:bg-white">
+                {hero.secondaryCta.label}
+              </a>
+            </div>
+            <div className="mt-10 flex flex-wrap gap-8">
+              {hero.stats.map((s) => (
+                <div key={s.label}>
+                  <div className="text-2xl font-bold tracking-tight">{s.value}</div>
+                  <div className="text-[11px] uppercase tracking-wider text-neutral-500">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* hero visual */}
+          <div className="relative h-[420px] w-full sm:h-[460px]">
+            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 500 460" fill="none" aria-hidden>
+              <ellipse cx="270" cy="240" rx="210" ry="150" stroke="#d6d3d1" strokeWidth="1" transform="rotate(-18 270 240)" />
+              <ellipse cx="270" cy="240" rx="150" ry="210" stroke="#e7e5e4" strokeWidth="1" transform="rotate(12 270 240)" />
+            </svg>
+            <span className="absolute right-6 top-2 text-neutral-300">✦</span>
+            <span className="absolute bottom-8 left-2 text-neutral-400">✦</span>
+            <span className="absolute right-16 bottom-2 text-2xl text-neutral-900">✦</span>
+            <Stamp />
+            <HeroCard c={heroCards[0]} className="left-2 top-2 z-10 -rotate-6" />
+            <HeroCard c={heroCards[1]} className="right-2 top-16 z-20 rotate-6" />
+            <HeroCard c={heroCards[2]} className="left-1/2 top-40 z-30 -translate-x-1/2 rotate-[2deg]" />
+          </div>
+        </section>
+
+        {/* ---------------- Ecosystem row ---------------- */}
+        <section id="technology" className="border-y border-neutral-200 py-8">
+          <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
+            {ecosystem.map((e) => (
+              <span key={e} className="text-lg font-semibold tracking-tight text-neutral-300 transition hover:text-neutral-500 sm:text-xl">{e}</span>
+            ))}
+          </div>
+        </section>
+
+        {/* ---------------- Use Cases pills ---------------- */}
+        <section id="use-cases" className="py-14">
+          <h2 className="mb-6 text-center text-2xl font-bold tracking-tight sm:text-3xl">{useCases.title}</h2>
+          <div className="space-y-3">
+            {useCases.rows.map((row, ri) => (
+              <div key={ri} className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {row.map((p) => (
+                  <span key={p} className="flex-shrink-0 rounded-full border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 transition hover:border-neutral-900 hover:shadow-sm">{p}</span>
                 ))}
               </div>
-              <button
-                onClick={() => setSession("cockpit")}
-                className="mt-3 w-full rounded-lg border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-800"
-              >
-                Open cockpit — view all parties (demo)
-              </button>
+            ))}
+          </div>
+          <div className="mt-6 flex justify-center">
+            <Link href={project.demoHref} className="inline-flex items-center gap-1.5 rounded-full bg-neutral-900 px-4 py-2 text-xs font-semibold text-white">
+              All use cases <IconArrow />
+            </Link>
+          </div>
+        </section>
+
+        {/* ---------------- Featured ---------------- */}
+        <section className="py-8">
+          <div className="mb-6 flex items-end justify-between">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{featured.title}</h2>
+            <div className="flex items-center gap-2">
+              <button onClick={() => scrollFeat(-1)} className="grid h-9 w-9 place-items-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-neutral-900" aria-label="Previous"><IconArrow dir={-1} /></button>
+              <button onClick={() => scrollFeat(1)} className="grid h-9 w-9 place-items-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-neutral-900" aria-label="Next"><IconArrow /></button>
             </div>
           </div>
-        ) : (
-          <>
-            {/* Session bar: switch identity or log out */}
-            <div className="mb-5 flex flex-wrap items-center gap-1 rounded-xl bg-slate-900/70 p-1.5 ring-1 ring-slate-800">
-              <span className="px-2 text-xs font-medium text-slate-500">Logged in as</span>
-              {ROLES.map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => setSession(r.key)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    session === r.key ? "bg-slate-700 text-white shadow" : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setSession(null)}
-                className="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/10"
-              >
-                Log out
-              </button>
-            </div>
-
-            {session === "cockpit" ? (
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-                {treasurerCard}
-                {agentCard}
-                {supplierCard}
-              </div>
-            ) : (
-              <div className="mx-auto max-w-xl">
-                <div className="mb-3 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-xs text-slate-400">
-                  <span className="font-semibold text-slate-200">
-                    🔑 Session: {ROLES.find((r) => r.key === session)?.label}
-                  </span>
-                  {" — "}
-                  {sessionNote[session as "treasurer" | "agent" | "supplier"]}
+          <div ref={featRef} className="flex snap-x gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {featured.items.map((f) => (
+              <article key={f.title} className="group w-[280px] flex-shrink-0 snap-start overflow-hidden rounded-2xl border border-neutral-900/90 bg-white transition hover:-translate-y-1 hover:shadow-xl">
+                <div className={`relative h-44 bg-gradient-to-br ${toneGrad[f.tone]}`}>
+                  <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-neutral-900">{f.status}</span>
                 </div>
-                {session === "treasurer" ? treasurerCard : session === "agent" ? agentCard : supplierCard}
-              </div>
-            )}
-          </>
-        )}
+                <div className="space-y-2 p-4">
+                  <h3 className="text-base font-semibold tracking-tight">{f.title}</h3>
+                  <p className="text-sm leading-relaxed text-neutral-600">{f.subtitle}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
 
-        <footer className="mt-8 text-center text-[11px] text-slate-600">
-          Bounded. Private. Atomic. · Daml + Canton sandbox · MandateRail
-        </footer>
-      </div>
+        {/* ---------------- Key Workflows ---------------- */}
+        <section className="py-14">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{workflows.title}</h2>
+            <div className="flex gap-1 rounded-full border border-neutral-300 bg-white p-1">
+              {workflows.filters.map((f) => (
+                <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-semibold transition ${filter === f ? "bg-neutral-900 text-white" : "text-neutral-500 hover:text-neutral-900"}`}>{f}</button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {workflows.items.map((w, i) => (
+              <div key={w.name} className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3 transition hover:border-neutral-400 hover:shadow-sm">
+                <span className="w-5 text-sm font-semibold text-neutral-400">{i + 1}</span>
+                <span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full bg-neutral-900 text-xs font-bold text-white">{w.name.slice(0, 1)}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{w.name}</div>
+                  <div className="truncate text-xs text-neutral-500">{w.desc}</div>
+                </div>
+                <span className="hidden flex-shrink-0 rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-neutral-700 sm:inline-block">{w.metric}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ---------------- Explore tabs ---------------- */}
+        <section id="explore" className="py-8">
+          <h2 className="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">{explore.title}</h2>
+          <div className="flex flex-wrap gap-2">
+            {explore.tabs.map((t) => (
+              <button key={t.key} onClick={() => setTab(t.key)} className={`rounded-full border px-4 py-2 text-sm font-medium transition ${tab === t.key ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-900"}`}>{t.key}</button>
+            ))}
+          </div>
+          <div className="mt-5 rounded-2xl border border-neutral-200 bg-white p-6 sm:p-8">
+            <div className="text-xs font-semibold uppercase tracking-wider text-neutral-400">{activeTab.key}</div>
+            <p className="mt-2 max-w-3xl text-lg leading-relaxed text-neutral-800">{activeTab.body}</p>
+          </div>
+        </section>
+
+        {/* ---------------- Problem / Solution / Why ---------------- */}
+        <section className="py-14">
+          <div className="grid gap-5 md:grid-cols-3">
+            {problemSolution.map((c) => (
+              <div key={c.tag} className="flex flex-col rounded-2xl border border-neutral-200 bg-white p-6 transition hover:-translate-y-1 hover:shadow-lg">
+                <span className="mb-3 inline-flex w-fit rounded-full bg-neutral-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">{c.tag}</span>
+                <h3 className="text-lg font-semibold tracking-tight">{c.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-neutral-600">{c.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ---------------- How it works ---------------- */}
+        <section className="py-8">
+          <SectionHead title={howItWorks.title} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {howItWorks.steps.map((s) => (
+              <div key={s.n} className="rounded-2xl border border-neutral-200 bg-white p-5 transition hover:border-neutral-900">
+                <div className="font-mono text-3xl font-bold text-neutral-200">{s.n}</div>
+                <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ---------------- CTA band ---------------- */}
+        <section className="py-14">
+          <div className="flex flex-col items-center gap-5 rounded-3xl bg-neutral-900 px-6 py-14 text-center text-white sm:px-12">
+            <h2 className="max-w-2xl text-2xl font-bold tracking-tight sm:text-4xl">Bounded. Private. Atomic.</h2>
+            <p className="max-w-xl text-sm text-neutral-300">{project.oneLiner}</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link href={project.demoHref} className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:-translate-y-0.5">Launch the demo</Link>
+              <a href={project.repo} className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">View on GitHub</a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      {/* ---------------- Footer ---------------- */}
+      <footer className="border-t border-neutral-200">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2">
+            <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-900 text-[10px] font-bold text-white">M</span>
+            <span className="text-sm font-semibold">{project.name}</span>
+            <span className="text-xs text-neutral-500">— {project.tagline}</span>
+          </div>
+          <div className="flex items-center gap-5 text-sm text-neutral-600">
+            <Link href={project.demoHref} className="hover:text-neutral-900">Demo</Link>
+            <a href={project.repo} className="hover:text-neutral-900">GitHub</a>
+            <a href={project.repo} className="hover:text-neutral-900">Docs</a>
+          </div>
+          <div className="text-xs text-neutral-400">© 2026 {project.name} · Built on Canton</div>
+        </div>
+      </footer>
     </div>
   );
 }
