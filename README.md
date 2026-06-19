@@ -624,19 +624,21 @@ mandaterail/
 │   │   ├── agent.ts               # read quotes -> choose -> exercise Commit
 │   │   └── intent.ts              # optional Claude-phrased intent (no authority)
 │   └── package.json
-├── ui/                            # Layer 4 - three party-scoped panels
-│   ├── src/
-│   │   ├── treasurer/             # issue / live gauge / revoke / audit log
-│   │   ├── supplier/              # Authorized + Funded view only
-│   │   ├── agent/                 # agent activity pane
-│   │   ├── ledger/                # @daml/react hooks, streaming
-│   │   └── App.tsx
-│   ├── index.html
-│   └── package.json
+├── frontend/                      # Layer 4 - Next.js UI (standalone npm app, own lockfile)
+│   ├── app/
+│   │   ├── api/                   # backend-for-frontend route handlers -> JSON API
+│   │   │   ├── state/route.ts     # role-scoped snapshot (proves privacy)
+│   │   │   ├── commit/route.ts    # agent: cheapest | overcap | offlist
+│   │   │   ├── revoke/route.ts    # treasurer kill switch
+│   │   │   └── issue/route.ts     # reset: archive all + re-seed
+│   │   ├── lib/                   # server JSON-API client + HS256 token mint
+│   │   ├── components/ui.tsx
+│   │   └── page.tsx               # 3-panel dashboard (Treasurer/Agent/Supplier)
+│   └── .env.local                # JSON_API_URL + DAML_PACKAGE_ID (gitignored)
 ├── docs/
 │   ├── diagrams/                  # architecture, sequence, privacy, screenshots
 │   └── deck.pdf                   # presentation deck (submission)
-├── pnpm-workspace.yaml            # links daml.js, agent, ui
+├── pnpm-workspace.yaml            # links daml.js + agent (frontend is standalone npm)
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -667,17 +669,22 @@ daml start          # compiles Daml, starts sandbox + JSON API, runs Bootstrap s
 daml codegen js .daml/dist/*.dar -o daml.js
 ```
 
-This emits a `daml.js/` package consumed by `agent/` and `ui/` via the pnpm workspace (`pnpm-workspace.yaml`). Re-run after any change to the Daml model.
+This emits a `daml.js/` package consumed by `agent/` via the pnpm workspace (`pnpm-workspace.yaml`). Re-run after any change to the Daml model. (The `frontend/` UI does not use these bindings — it talks to the JSON API via `fetch`.)
 
 ### 3. Run the UI (three panels)
 
+The UI is a standalone Next.js app in `frontend/` (a **backend-for-frontend**: its route handlers proxy the Daml JSON API and mint per-party tokens server-side). It needs the DAR's package id:
+
 ```bash
-cd ui
-pnpm install
-pnpm dev            # http://localhost:5173
+cd frontend
+cp .env.example .env.local
+# set DAML_PACKAGE_ID — from the repo root:
+#   daml damlc inspect-dar --json .daml/dist/mandaterail-1.0.0.dar   (copy main_package_id)
+npm install
+npm run dev          # http://localhost:3000
 ```
 
-Open the Treasurer, Supplier, and Agent panels (separate tabs / routes), each scoped to its party token.
+The dashboard shows the Treasurer console (budget gauge, issue/revoke), the Buyer Agent (sealed quotes + commit/over-cap/off-list + live ledger log), and Supplier A (its `Authorized + Funded` slice with the cap proven **NOT VISIBLE**). Re-run the `inspect-dar` step whenever the Daml model changes.
 
 ### 4. Run the scripted agent
 
@@ -708,7 +715,7 @@ The rejections are raw Daml `AssertionFailed` errors from the `SpendMandate.Comm
 
 ## Configuration
 
-Copy `.env.example` to `.env` in `agent/` and `ui/`. Defaults match `daml start`.
+Copy `.env.example` to `.env` in `agent/` (the `frontend/` UI uses its own `.env.local`, see step 3). Defaults match `daml start`.
 
 | Variable | Default | Used by | Purpose |
 |---|---|---|---|

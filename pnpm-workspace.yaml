@@ -1,6 +1,8 @@
 packages:
   # Generated Daml TypeScript bindings (run `pnpm codegen` to (re)generate).
   - 'daml.js/*'
-  # Application layers (added in later build steps).
+  # Scripted buyer agent.
   - 'agent'
-  - 'ui'
+  # NOTE: frontend/ is a standalone Next.js app on its own npm lockfile — it is
+  # intentionally NOT part of this pnpm workspace (it talks to the JSON API via
+  # fetch and needs no generated bindings).

@@ -1,0 +1,73 @@
+// Shared types between the BFF route handlers and the client UI.
+
+export interface MandatePayload {
+  treasurer: string;
+  agent: string;
+  bank: string;
+  category: string;
+  perTxCap: string;
+  remainingBudget: string;
+  expiry: string;
+  approvedSuppliers: string[];
+}
+
+export interface QuotePayload {
+  supplier: string;
+  agent: string;
+  category: string;
+  price: string;
+}
+
+export interface POPayload {
+  agent: string;
+  supplier: string;
+  category: string;
+  amount: string;
+  status: string;
+}
+
+export interface IouPayload {
+  bank: string;
+  owner: string;
+  amount: string;
+  observers: string[];
+}
+
+export type QuoteKind = "compliant" | "over-cap" | "off-list";
+
+export interface StateSnapshot {
+  treasurer: {
+    mandate: {
+      category: string;
+      perTxCap: string;
+      remainingBudget: string;
+      approvedSuppliers: string[];
+      expiry: string;
+    } | null;
+  };
+  agent: {
+    hasMandate: boolean;
+    remainingBudget: string | null;
+    perTxCap: string | null;
+    quotes: { supplier: string; price: string; kind: QuoteKind }[];
+    purchaseOrders: { supplier: string; amount: string; status: string }[];
+  };
+  supplier: {
+    label: string;
+    canSeeMandate: boolean;
+    ownQuote: { price: string } | null;
+    purchaseOrder: { amount: string; status: string } | null;
+  };
+}
+
+export type CommitMode = "cheapest" | "overcap" | "offlist";
+
+export interface CommitResponse {
+  ok: boolean;
+  mode?: string;
+  supplier?: string;
+  amount?: string;
+  rejected?: boolean;
+  reason?: string;
+  error?: string;
+}
