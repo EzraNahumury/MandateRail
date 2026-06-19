@@ -15,13 +15,7 @@ interface LogEntry {
   text: string;
 }
 
-const ROLES = [
-  { key: "cockpit", label: "Cockpit (all)" },
-  { key: "treasurer", label: "Treasurer" },
-  { key: "agent", label: "Buyer Agent" },
-  { key: "supplier", label: "Supplier A" },
-] as const;
-type Role = (typeof ROLES)[number]["key"];
+type Role = "cockpit" | "treasurer" | "agent" | "supplier";
 
 /* ---------- sign-in icons ---------- */
 const svg = (children: ReactNode) => (
@@ -39,6 +33,13 @@ const PARTIES = [
   { key: "agent", title: "Buyer Agent", sub: "autonomous buyer · spends on policy", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
   { key: "supplier", title: "Supplier A", sub: "counterparty · receives a slice", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
 ] as const;
+
+const SESSION_META: Record<Role, { label: string; icon: () => ReactNode; chip: string }> = {
+  treasurer: { label: "Treasurer", icon: IconBank, chip: "bg-sky-50 text-sky-600 ring-sky-100" },
+  agent: { label: "Buyer Agent", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
+  supplier: { label: "Supplier A", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  cockpit: { label: "Cockpit · all parties", icon: IconGrid, chip: "bg-neutral-100 text-neutral-600 ring-neutral-200" },
+};
 
 export default function Home() {
   const [snap, setSnap] = useState<StateSnapshot | null>(null);
@@ -259,6 +260,31 @@ export default function Home() {
     supplier: "You only ever receive your own slice. The cap never reaches your node — find it, you can't.",
   };
 
+  let identityBar: ReactNode = null;
+  if (session) {
+    const meta = SESSION_META[session];
+    const Icon = meta.icon;
+    identityBar = (
+      <div className="mb-5 flex items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2.5 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <span className={`grid h-7 w-7 place-items-center rounded-lg ring-1 ${meta.chip}`}>
+            <Icon />
+          </span>
+          <span className="text-sm">
+            <span className="text-neutral-400">Signed in as </span>
+            <span className="font-semibold text-neutral-900">{meta.label}</span>
+          </span>
+        </div>
+        <button
+          onClick={() => setSession(null)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
+        >
+          Log out
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full bg-[#f5f5f3] text-neutral-900 [background-image:radial-gradient(circle,rgba(0,0,0,0.035)_1px,transparent_1px)] [background-size:26px_26px]">
       <div className="mx-auto max-w-7xl px-6 py-8">
@@ -328,27 +354,7 @@ export default function Home() {
           </div>
         ) : (
           <>
-            {/* Session bar: switch identity or log out */}
-            <div className="mb-5 flex flex-wrap items-center gap-1 rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm">
-              <span className="px-2 text-xs font-medium text-neutral-500">Logged in as</span>
-              {ROLES.map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => setSession(r.key)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    session === r.key ? "bg-neutral-900 text-white shadow" : "text-neutral-500 hover:text-neutral-900"
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setSession(null)}
-                className="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
-              >
-                Log out
-              </button>
-            </div>
+            {identityBar}
 
             {session === "cockpit" ? (
               <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
@@ -358,11 +364,7 @@ export default function Home() {
               </div>
             ) : (
               <div className="mx-auto max-w-xl">
-                <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs text-neutral-500">
-                  <span className="font-semibold text-neutral-900">
-                    🔑 Session: {ROLES.find((r) => r.key === session)?.label}
-                  </span>
-                  {" — "}
+                <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs leading-relaxed text-neutral-500">
                   {sessionNote[session as "treasurer" | "agent" | "supplier"]}
                 </div>
                 {session === "treasurer" ? treasurerCard : session === "agent" ? agentCard : supplierCard}
