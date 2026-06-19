@@ -3,13 +3,16 @@ module MandateRail.Mandate where
 import MandateRail.Cash
 import MandateRail.Rfq
 import MandateRail.Purchase
+import MandateRail.Audit
 
 -- | Result of a successful Commit: the recreated mandate (reduced budget),
--- the binding purchase order, and the cash now owned by the supplier.
+-- the binding purchase order, the cash now owned by the supplier, and the
+-- immutable on-chain audit record.
 data CommitResult = CommitResult with
     mandate       : ContractId SpendMandate
     purchaseOrder : ContractId PurchaseOrder
     cash          : ContractId Iou
+    audit         : ContractId AuditRecord
   deriving (Eq, Show)
 
 -- | The enforcement core. A treasurer issues a SpendMandate to a named agent.
@@ -22,6 +25,7 @@ template SpendMandate
     treasurer         : Party
     agent             : Party
     bank              : Party
+    regulator         : Party
     category          : Text
     perTxCap          : Decimal
     remainingBudget   : Decimal
@@ -30,6 +34,9 @@ template SpendMandate
   where
     signatory treasurer
     observer agent
+    -- NOTE: the regulator is deliberately NOT an observer of the mandate, so the
+    -- cap and remaining budget never reach its node (selective disclosure). The
+    -- regulator only sees the PurchaseOrder + AuditRecord emitted by Commit.
 
     ensure perTxCap > 0.0 && remainingBudget >= 0.0
 
@@ -39,29 +46,48 @@ template SpendMandate
     -- (treasurer) authority is in scope for the Transfer.
     choice Commit : CommitResult
       with
-        quoteCid : ContractId RfqQuote
-        amount   : Decimal
-        cashCid  : ContractId Iou
+        quoteCid  : ContractId RfqQuote
+        amount    : Decimal
+        cashCid   : ContractId Iou
+        agentNote : Text   -- advisory rationale, logged for audit; NEVER an authority
       controller agent
       do
         now   <- getTime
         quote <- fetch quoteCid
 
-        -- LEDGER-ENFORCED POLICY (not app logic, not a prompt):
-        assertMsg "amount exceeds per-tx cap"       (amount <= perTxCap)
-        assertMsg "amount exceeds remaining budget" (amount <= remainingBudget)
-        assertMsg "supplier not on allow-list"      (quote.supplier `elem` approvedSuppliers)
-        assertMsg "category mismatch"               (quote.category == category)
-        assertMsg "mandate expired"                 (now < expiry)
+        -- LEDGER-ENFORCED POLICY (not app logic, not a prompt). The verdicts are
+        -- bound to lets so the SAME values become both the precondition and the
+        -- audit evidence — derived, never hardcoded.
+        let underPerTxCap    = amount <= perTxCap
+            underBudget      = amount <= remainingBudget
+            supplierApproved = quote.supplier `elem` approvedSuppliers
+            categoryMatch    = quote.category == category
+            notExpired       = now < expiry
+        assertMsg "amount exceeds per-tx cap"       underPerTxCap
+        assertMsg "amount exceeds remaining budget" underBudget
+        assertMsg "supplier not on allow-list"      supplierApproved
+        assertMsg "category mismatch"               categoryMatch
+        assertMsg "mandate expired"                 notExpired
         assertMsg "amount must match quoted price"  (amount == quote.price)
 
         -- Bring in the supplier's authority via their standing sealed offer.
-        poCid <- exercise quoteCid Accept with buyerAgent = agent
+        poCid <- exercise quoteCid Accept with buyerAgent = agent, regulator = regulator
 
         -- Settle tokenized cash (treasury-owned -> owner authority in scope).
         (paidCash, _change) <- exercise cashCid Transfer with
                                  newOwner       = quote.supplier
                                  transferAmount = amount
+
+        -- Immutable, regulator-observable audit record — created INSIDE this one
+        -- atomic transaction, so the rationale is provably tied to a real,
+        -- ledger-validated spend. The booleans are the ledger's verdict (the
+        -- authority); agentNote is advisory data only.
+        auditCid <- create AuditRecord with
+          treasurer, agent, regulator
+          category, supplier = quote.supplier, amount
+          underPerTxCap, underBudget, supplierApproved, categoryMatch, notExpired
+          committedAt = now
+          agentNote
 
         -- Archive-and-recreate: contention-safe cumulative cap.
         newMandate <- create this with remainingBudget = remainingBudget - amount
@@ -70,6 +96,7 @@ template SpendMandate
           mandate       = newMandate
           purchaseOrder = poCid
           cash          = paidCash
+          audit         = auditCid
 
     -- Instant kill switch. CONSUMING (default): archives the mandate, so the
     -- agent's next Commit fails because its input contract no longer exists.

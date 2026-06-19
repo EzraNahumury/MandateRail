@@ -18,6 +18,7 @@ setup = do
   supB      <- allocateParty "SupplierB"
   supC      <- allocateParty "SupplierC"
   supD      <- allocateParty "SupplierD"
+  regulator <- allocateParty "Regulator"
 
   now <- getTime
   let expiry = addRelTime now (hours (24 * 30)) -- 30 days
@@ -33,6 +34,7 @@ setup = do
       treasurer = treasurer
       agent = agent
       bank = bank
+      regulator = regulator
       category = "cloud-compute"
       perTxCap = 10000.0
       remainingBudget = 50000.0

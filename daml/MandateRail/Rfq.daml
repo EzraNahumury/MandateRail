@@ -23,11 +23,13 @@ template RfqQuote
     choice Accept : ContractId PurchaseOrder
       with
         buyerAgent : Party
+        regulator  : Party
       controller buyerAgent
       do
         create PurchaseOrder with
-          agent    = buyerAgent
-          supplier = supplier
-          category = category
-          amount   = price
-          status   = "AUTHORIZED_FUNDED"
+          agent     = buyerAgent
+          supplier  = supplier
+          regulator = regulator
+          category  = category
+          amount    = price
+          status    = "AUTHORIZED_FUNDED"

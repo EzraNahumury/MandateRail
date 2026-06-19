@@ -5,10 +5,12 @@ module MandateRail.Purchase where
 -- cap or remaining budget — only the agreed line item.
 template PurchaseOrder
   with
-    agent    : Party
-    supplier : Party
-    category : Text
-    amount   : Decimal
-    status   : Text
+    agent     : Party
+    supplier  : Party
+    regulator : Party
+    category  : Text
+    amount    : Decimal
+    status    : Text
   where
     signatory agent, supplier
+    observer regulator

@@ -17,7 +17,7 @@ export async function POST() {
     const omni = mintToken(ids);
 
     // 1) Archive every existing app contract.
-    for (const tid of [TID.mandate, TID.quote, TID.po, TID.iou]) {
+    for (const tid of [TID.mandate, TID.quote, TID.po, TID.iou, TID.audit]) {
       const contracts = await query<unknown>(omni, [tid]);
       for (const c of contracts) {
         try {
@@ -35,17 +35,20 @@ export async function POST() {
     const sB = byName["SupplierB"];
     const sC = byName["SupplierC"];
     const sD = byName["SupplierD"];
+    const R = byName["Regulator"];
     const category = "cloud-compute";
     const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     // 2) Fund the treasury, earmarked (disclosed) to the agent.
     await create(omni, TID.iou, { bank: B, owner: T, amount: "50000.0", observers: [A] });
 
-    // 3) Issue the mandate.
+    // 3) Issue the mandate (regulator is a field, NOT an observer — it only sees
+    //    the PurchaseOrder + AuditRecord, never the cap/budget).
     await create(omni, TID.mandate, {
       treasurer: T,
       agent: A,
       bank: B,
+      regulator: R,
       category,
       perTxCap: "10000.0",
       remainingBudget: "50000.0",

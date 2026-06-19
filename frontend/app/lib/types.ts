@@ -33,6 +33,31 @@ export interface IouPayload {
   observers: string[];
 }
 
+export interface AuditPayload {
+  treasurer: string;
+  agent: string;
+  regulator: string;
+  category: string;
+  supplier: string;
+  amount: string;
+  underPerTxCap: boolean;
+  underBudget: boolean;
+  supplierApproved: boolean;
+  categoryMatch: boolean;
+  notExpired: boolean;
+  committedAt: string;
+  agentNote: string;
+}
+
+export interface AuditEntry {
+  supplier: string;
+  amount: string;
+  category: string;
+  committedAt: string;
+  agentNote: string;
+  checks: { label: string; pass: boolean }[];
+}
+
 export type QuoteKind = "compliant" | "over-cap" | "off-list";
 
 export interface StateSnapshot {
@@ -51,12 +76,19 @@ export interface StateSnapshot {
     perTxCap: string | null;
     quotes: { supplier: string; price: string; kind: QuoteKind }[];
     purchaseOrders: { supplier: string; amount: string; status: string }[];
+    auditTrail: AuditEntry[];
   };
   supplier: {
     label: string;
     canSeeMandate: boolean;
     ownQuote: { price: string } | null;
     purchaseOrder: { amount: string; status: string } | null;
+  };
+  regulator: {
+    canSeeMandate: boolean;
+    canSeeQuotes: boolean;
+    purchaseOrders: { supplier: string; amount: string; status: string }[];
+    auditTrail: AuditEntry[];
   };
 }
 

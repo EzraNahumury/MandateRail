@@ -15,7 +15,7 @@ interface LogEntry {
   text: string;
 }
 
-type Role = "cockpit" | "treasurer" | "agent" | "supplier";
+type Role = "cockpit" | "treasurer" | "agent" | "supplier" | "regulator";
 
 /* ---------- sign-in icons ---------- */
 const svg = (children: ReactNode) => (
@@ -27,17 +27,20 @@ const IconBot = () => svg(<><rect x="4" y="8" width="16" height="12" rx="2" /><p
 const IconBox = () => svg(<><path d="m21 8-9-5-9 5 9 5 9-5z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></>);
 const IconShield = () => svg(<><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z" /><path d="m9.5 12 2 2 3.5-4" /></>);
 const IconGrid = () => svg(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>);
+const IconScale = () => svg(<><path d="M12 3v18M8 21h8M6 7h12" /><path d="M6 7 3.5 12.5a2.5 2.5 0 0 0 5 0L6 7zM18 7l-2.5 5.5a2.5 2.5 0 0 0 5 0L18 7z" /></>);
 
 const PARTIES = [
   { key: "treasurer", title: "Treasurer Console", sub: "issuer · holds mandate authority", icon: IconBank, chip: "bg-sky-50 text-sky-600 ring-sky-100" },
   { key: "agent", title: "Buyer Agent", sub: "autonomous buyer · spends on policy", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
   { key: "supplier", title: "Supplier A", sub: "counterparty · receives a slice", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  { key: "regulator", title: "Regulator / Auditor", sub: "read-only supervisor · sees the audit trail", icon: IconScale, chip: "bg-amber-50 text-amber-600 ring-amber-100" },
 ] as const;
 
 const SESSION_META: Record<Role, { label: string; icon: () => ReactNode; chip: string }> = {
   treasurer: { label: "Treasurer", icon: IconBank, chip: "bg-sky-50 text-sky-600 ring-sky-100" },
   agent: { label: "Buyer Agent", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
   supplier: { label: "Supplier A", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  regulator: { label: "Regulator", icon: IconScale, chip: "bg-amber-50 text-amber-600 ring-amber-100" },
   cockpit: { label: "Cockpit · all parties", icon: IconGrid, chip: "bg-neutral-100 text-neutral-600 ring-neutral-200" },
 };
 
@@ -258,7 +261,66 @@ export default function Home() {
     treasurer: "You hold the mandate authority — issue and revoke. You see the cap and live consumption.",
     agent: "You can spend only within the encoded mandate. The ledger rejects anything off-policy — not a prompt.",
     supplier: "You only ever receive your own slice. The cap never reaches your node — find it, you can't.",
+    regulator: "Read-only supervisor. You see every authorized purchase + its on-chain audit, but never the cap, budget, or sealed bids.",
   };
+
+  const reg = snap?.regulator;
+  const regulatorCard = (
+    <Card title="Regulator / Auditor" subtitle="read-only supervisor" accent="sky">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-lg bg-emerald-50 p-3 ring-1 ring-emerald-200">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700">Can see</div>
+          <ul className="mt-1 space-y-1 text-[11px] text-emerald-800">
+            <li>✓ Authorized purchase orders</li>
+            <li>✓ On-chain audit + rationale</li>
+          </ul>
+        </div>
+        <div className="rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Cannot see</div>
+          <ul className="mt-1 space-y-1 text-[11px] text-neutral-500">
+            <li>🔒 Cap &amp; budget <span className="font-mono text-neutral-400">{reg && !reg.canSeeMandate ? "[]" : ""}</span></li>
+            <li>🔒 Sealed bids <span className="font-mono text-neutral-400">{reg && !reg.canSeeQuotes ? "[]" : ""}</span></li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="flex-1">
+        <div className="mb-1.5 text-xs text-neutral-500">On-chain audit trail ({reg?.auditTrail.length ?? 0})</div>
+        {reg && reg.auditTrail.length > 0 ? (
+          <div className="space-y-2">
+            {reg.auditTrail.map((a, i) => (
+              <div key={i} className="rounded-lg border border-neutral-200 bg-white p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold text-neutral-900">{a.supplier}</span>
+                  <span className="font-mono text-neutral-900">${money(a.amount)}</span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {a.checks.map((c) => (
+                    <span
+                      key={c.label}
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${c.pass ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-red-50 text-red-700 ring-1 ring-red-200"}`}
+                    >
+                      {c.pass ? "✓" : "✗"} {c.label}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-2 text-[11px] text-neutral-500">
+                  <span className="italic">&ldquo;{a.agentNote}&rdquo;</span>{" "}
+                  <span className="text-neutral-400">— agent note (advisory)</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-neutral-400">No commits yet — have the Buyer Agent commit a purchase.</p>
+        )}
+      </div>
+
+      <p className="text-[10px] leading-relaxed text-neutral-400">
+        Ledger verdict = authority · agent note = advisory · live Canton query, not mocked.
+      </p>
+    </Card>
+  );
 
   let identityBar: ReactNode = null;
   if (session) {
@@ -357,17 +419,24 @@ export default function Home() {
             {identityBar}
 
             {session === "cockpit" ? (
-              <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
                 {treasurerCard}
                 {agentCard}
                 {supplierCard}
+                {regulatorCard}
               </div>
             ) : (
               <div className="mx-auto max-w-xl">
                 <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs leading-relaxed text-neutral-500">
-                  {sessionNote[session as "treasurer" | "agent" | "supplier"]}
+                  {sessionNote[session as Exclude<Role, "cockpit">]}
                 </div>
-                {session === "treasurer" ? treasurerCard : session === "agent" ? agentCard : supplierCard}
+                {session === "treasurer"
+                  ? treasurerCard
+                  : session === "agent"
+                    ? agentCard
+                    : session === "supplier"
+                      ? supplierCard
+                      : regulatorCard}
               </div>
             )}
           </>

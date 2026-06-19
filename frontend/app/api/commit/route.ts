@@ -54,11 +54,19 @@ export async function POST(request: Request) {
       return NextResponse.json<CommitResponse>({ ok: false, error: "No funded treasury Iou visible." }, { status: 400 });
     }
 
+    const agentNote =
+      mode === "cheapest"
+        ? "Selected the cheapest compliant supplier within budget."
+        : mode === "overcap"
+          ? "Attempted the lowest over-cap quote to test the limit."
+          : "Attempted an off-allow-list supplier to test the limit.";
+
     try {
       await exercise(agentTok, TID.mandate, mandate.contractId, "Commit", {
         quoteCid: quote.contractId,
         amount: quote.payload.price,
         cashCid: fund.contractId,
+        agentNote,
       });
       return NextResponse.json<CommitResponse>({
         ok: true,

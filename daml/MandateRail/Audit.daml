@@ -1,0 +1,30 @@
+module MandateRail.Audit where
+
+-- | Immutable, on-chain audit of an authorized Commit. Signed by treasurer +
+-- agent, observed by the regulator. It records the LEDGER's own precondition
+-- verdicts — each boolean is DERIVED from the exact expression the Commit choice
+-- asserts on, not hardcoded — plus an ADVISORY agent note.
+--
+-- It deliberately does NOT carry the per-tx cap or remaining budget: the
+-- regulator audits WHAT was bought and that EVERY policy check passed, without
+-- ever seeing the private financials. That is selective disclosure — the
+-- auditor's read-only slice — and it is why the booleans (verdicts), not the
+-- thresholds, are what's recorded.
+template AuditRecord
+  with
+    treasurer        : Party
+    agent            : Party
+    regulator        : Party
+    category         : Text
+    supplier         : Party
+    amount           : Decimal
+    underPerTxCap    : Bool
+    underBudget      : Bool
+    supplierApproved : Bool
+    categoryMatch    : Bool
+    notExpired       : Bool
+    committedAt      : Time
+    agentNote        : Text
+  where
+    signatory treasurer, agent
+    observer regulator

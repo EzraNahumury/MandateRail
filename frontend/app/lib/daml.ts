@@ -15,6 +15,7 @@ export const TID = {
   quote: `${PKG}:MandateRail.Rfq:RfqQuote`,
   po: `${PKG}:MandateRail.Purchase:PurchaseOrder`,
   iou: `${PKG}:MandateRail.Cash:Iou`,
+  audit: `${PKG}:MandateRail.Audit:AuditRecord`,
 };
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");

@@ -8,12 +8,14 @@ import Daml.Script
 import MandateRail.Cash
 import MandateRail.Mandate
 import MandateRail.Rfq
+import MandateRail.Audit
 
 -- A fresh world for each test.
 data World = World with
     treasurer : Party
     agent     : Party
     bank      : Party
+    regulator : Party
     supA      : Party
     supB      : Party
     supD      : Party
@@ -25,6 +27,7 @@ setupWorld cap budget = do
   treasurer <- allocateParty "Treasurer"
   agent     <- allocateParty "BuyerAgent"
   bank      <- allocateParty "Bank"
+  regulator <- allocateParty "Regulator"
   supA      <- allocateParty "SupplierA"
   supB      <- allocateParty "SupplierB"
   supD      <- allocateParty "SupplierD"
@@ -37,12 +40,13 @@ setupWorld cap budget = do
       treasurer = treasurer
       agent = agent
       bank = bank
+      regulator = regulator
       category = "cloud-compute"
       perTxCap = cap
       remainingBudget = budget
       expiry = expiry
       approvedSuppliers = [supA, supB]
-  pure World with treasurer, agent, bank, supA, supB, supD, mandate, cash
+  pure World with treasurer, agent, bank, regulator, supA, supB, supD, mandate, cash
 
 mkQuote : Party -> Party -> Decimal -> Script (ContractId RfqQuote)
 mkQuote supplier agent price =
@@ -55,7 +59,7 @@ testHappyPath = do
   w <- setupWorld 10000.0 50000.0
   q <- mkQuote w.supA w.agent 9000.0
   res <- submit w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
   Some po <- queryContractId w.supA res.purchaseOrder
   po.amount === 9000.0
   po.status === "AUTHORIZED_FUNDED"
@@ -68,7 +72,7 @@ testOverPerTxCap = do
   w <- setupWorld 10000.0 50000.0
   q <- mkQuote w.supA w.agent 12000.0
   submitMustFail w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = q, amount = 12000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 12000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
 
 -- 3. Over the cumulative remaining budget is rejected.
 testOverCumulativeCap : Script ()
@@ -76,7 +80,7 @@ testOverCumulativeCap = do
   w <- setupWorld 10000.0 5000.0
   q <- mkQuote w.supA w.agent 9000.0
   submitMustFail w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
 
 -- 4. A supplier not on the allow-list is rejected.
 testUnapprovedSupplier : Script ()
@@ -84,7 +88,7 @@ testUnapprovedSupplier = do
   w <- setupWorld 10000.0 50000.0
   q <- mkQuote w.supD w.agent 9000.0
   submitMustFail w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
 
 -- 5. Committing after expiry is rejected.
 testExpiredMandate : Script ()
@@ -93,7 +97,7 @@ testExpiredMandate = do
   q <- mkQuote w.supA w.agent 9000.0
   passTime (hours 721) -- move past the 720h expiry
   submitMustFail w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
 
 -- 6. Sealed bids: a rival supplier cannot observe another's quote; the agent can.
 testSealedBids : Script ()
@@ -112,9 +116,9 @@ testConcurrentCommitRace = do
   qA <- mkQuote w.supA w.agent 9000.0
   qB <- mkQuote w.supB w.agent 9000.0
   _ <- submit w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = qA, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = qA, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
   submitMustFail w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = qB, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = qB, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
 
 -- 8. After Revoke, any subsequent Commit fails (no input contract).
 testRevoke : Script ()
@@ -123,4 +127,36 @@ testRevoke = do
   q <- mkQuote w.supA w.agent 9000.0
   submit w.treasurer do exerciseCmd w.mandate Revoke
   submitMustFail w.agent do
-    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
+
+-- 9. Commit emits an immutable on-chain AuditRecord whose verdicts are DERIVED
+--    from the ledger's own preconditions (not hardcoded).
+testAuditEmitted : Script ()
+testAuditEmitted = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  res <- submit w.agent do
+    exerciseCmd w.mandate Commit with
+      quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "cheapest compliant supplier"
+  Some a <- queryContractId w.regulator res.audit
+  a.underPerTxCap === True
+  a.supplierApproved === True
+  a.amount === 9000.0
+  a.supplier === w.supA
+  a.agentNote === "cheapest compliant supplier"
+
+-- 10. Selective disclosure: the regulator sees the PurchaseOrder + AuditRecord
+--     but NOT the mandate — the cap/budget never reach its node (proven).
+testRegulatorSelectiveDisclosure : Script ()
+testRegulatorSelectiveDisclosure = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  res <- submit w.agent do
+    exerciseCmd w.mandate Commit with
+      quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "x"
+  poSeen <- queryContractId w.regulator res.purchaseOrder
+  assertMsg "regulator must see the PO" (isSome poSeen)
+  auditSeen <- queryContractId w.regulator res.audit
+  assertMsg "regulator must see the audit" (isSome auditSeen)
+  mandateSeen <- queryContractId w.regulator res.mandate
+  mandateSeen === None
