@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { StateSnapshot, CommitMode } from "@/app/lib/types";
 import { fetchState, postCommit, postIssue, postRevoke, postEscalate, postApprove, postReject } from "@/app/lib/api";
 import { Button, Card, Chip, MoneyGauge, money, Stat } from "@/app/components/ui";
+import { SpendAnalytics } from "@/app/components/charts";
 
 type LogKind = "ok" | "reject" | "error" | "info";
 interface LogEntry {
@@ -504,11 +505,18 @@ export default function Home() {
             {identityBar}
 
             {session === "cockpit" ? (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-                {treasurerCard}
-                {agentCard}
-                {supplierCard}
-                {regulatorCard}
+              <div className="space-y-5">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+                  {treasurerCard}
+                  {agentCard}
+                  {supplierCard}
+                  {regulatorCard}
+                </div>
+                <SpendAnalytics
+                  trail={reg?.auditTrail ?? []}
+                  perTxCap={mandate ? Number(mandate.perTxCap) : 0}
+                  remainingBudget={mandate ? Number(mandate.remainingBudget) : 0}
+                />
               </div>
             ) : (
               <div className="mx-auto max-w-xl">
