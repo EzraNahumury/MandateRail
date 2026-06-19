@@ -137,7 +137,9 @@ MandateRail makes **delegated spend authority a ledger primitive** rather than a
 | **Atomic `Commit`** | Debit mandate + create binding PO + settle tokenized cash — in **one transaction** | **Canton atomic multi-party settlement (DvP)** |
 | **`Authorized + Funded` slice** | The supplier sees proof of authority + funding, nothing about the cap | **Sub-transaction privacy** |
 | **Instant `Revoke`** | Treasurer archives the mandate; the agent's next action fails immediately | **Daml signatory authority** |
-| **Per-party audit** | Each stakeholder holds a non-repudiable, contract-scoped history | **Canton projection / observer model** |
+| **Multi-sig `TreasuryCharter`** | CEO + CFO set absolute ceilings; the treasurer can only mint *tighter* mandates, and either can cascade-revoke | **Daml multi-party signatory + choice preconditions** |
+| **Human-in-the-loop escalation** | The agent can't over-spend, but can raise an `ApprovalRequest`; only the treasurer can `Approve` a single override, audited honestly | **Daml authority flow — agent alone can never authorize `CommitApproved`** |
+| **On-chain `AuditRecord`** | Every commit emits an immutable record whose verdicts are *derived* from the ledger's own preconditions; regulator-observable, cap/budget omitted | **Canton projection / observer model** |
 
 The guarantee: **the agent cannot exceed its *encoded* mandate** (amount, supplier, category, expiry) — a far stronger property than an AI safety layer or a prompt guardrail. The ledger bounds the blast radius to exactly what the treasurer authorized; in-policy discretion (which compliant supplier, what price within cap) remains the agent's, by design.
 
@@ -252,16 +254,17 @@ flowchart LR
 
 ### Visibility matrix
 
-| Data | Treasurer | Buyer Agent | Winning Supplier | Other Suppliers | Auditor* |
+| Data | Treasurer | Buyer Agent | Winning Supplier | Other Suppliers | Regulator |
 |---|:--:|:--:|:--:|:--:|:--:|
-| `SpendMandate` cap & **remaining budget** | full | yes (observer) | no | no | scoped |
-| Own `RfqQuote` (price) | no | yes | yes | no | scoped |
+| `SpendMandate` cap & **remaining budget** | full | yes (observer) | no | no | **no** |
+| Own `RfqQuote` (price) | no | yes | yes | no | no |
 | **Rival** `RfqQuote` (price) | no | yes (runs auction) | no | no | no |
-| `PurchaseOrder` (Authorized + Funded) | yes | yes | yes | no | scoped |
-| Tokenized cash movement | yes | yes | yes (received) | no | scoped |
+| `PurchaseOrder` (Authorized + Funded) | yes | yes | yes | no | **yes (observer)** |
+| `AuditRecord` (verdicts + rationale, no cap/budget) | yes | yes | no | no | **yes (observer)** |
+| Tokenized cash movement | yes | yes | yes (received) | no | no |
 | Append-only action history | yes (own) | yes (own) | yes (own) | yes (own) | scoped read |
 
-\* *Auditor is an optional scoped-read party (roadmap), not in the MVP critical path.*
+\* *The regulator is **live in the MVP**: a real party that observes every `PurchaseOrder` + `AuditRecord` but is deliberately **not** an observer of the `SpendMandate` or any `RfqQuote` — so the cap, remaining budget, and sealed bids never reach its node (selective disclosure). Verified by `testRegulatorSelectiveDisclosure`.*
 
 > **Key insight:** the **buyer agent** sees all quotes because it *runs* the auction and chooses the winner — that is correct. The anti-collusion / anti-price-to-cap property is that **suppliers never see each other**, and **no supplier ever sees the cap**.
 
@@ -306,19 +309,49 @@ classDiagram
         +Decimal amount
         +Transfer()
     }
+    class TreasuryCharter {
+        +Party ceo
+        +Party cfo
+        +Decimal ceilingPerTxCap
+        +Decimal ceilingBudget
+        +MintMandate()
+    }
+    class ApprovalRequest {
+        +Party agent
+        +Party treasurer
+        +Decimal amount
+        +Text reason
+        +Approve()
+        +Reject()
+    }
+    class AuditRecord {
+        +Party treasurer
+        +Party regulator
+        +Bool underPerTxCap
+        +Bool humanApproved
+        +Text agentNote
+    }
+    TreasuryCharter --> SpendMandate : MintMandate creates (tighten-only)
     SpendMandate --> RfqQuote : Commit exercises Accept
     RfqQuote --> PurchaseOrder : Accept creates
     SpendMandate --> Iou : Commit transfers
+    SpendMandate --> AuditRecord : Commit emits
+    ApprovalRequest --> SpendMandate : Approve exercises CommitApproved
 ```
+
+**Three-layer authority + human-in-the-loop.** The `TreasuryCharter` (CEO + CFO multi-sig) sets absolute ceilings; the treasurer mints an operational `SpendMandate` **within** them (tighten-only); the agent spends **within** the mandate. The agent can *never* exceed the per-tx cap — but when an over-cap buy is genuinely needed it raises an `ApprovalRequest` that only the treasurer can `Approve`, committing a single override via `CommitApproved`, audited honestly (`underPerTxCap = false`, `humanApproved = true`). Either charter signatory can `RevokeByCharter` to cascade-kill the mandate.
 
 **Stakeholders** — *Signatory* / *Observer* per template:
 
 | Template | Signatory | Observer |
 |---|---|---|
-| `SpendMandate` | `treasurer` | `agent` (suppliers excluded → cap is private) |
+| `TreasuryCharter` | `ceo` + `cfo` (multi-sig) | `treasurer`, `regulator` |
+| `SpendMandate` | `treasurer` | `agent`, `charterCeo`, `charterCfo` (suppliers + regulator excluded → cap is private) |
 | `RfqQuote` | `supplier` | `agent` only (rivals excluded → sealed) |
-| `PurchaseOrder` | `agent` + `supplier` | — |
-| `Iou` (cash) | `bank` | `owner` |
+| `PurchaseOrder` | `agent` + `supplier` | `regulator` |
+| `Iou` (cash) | `bank` | `owner`, earmarked observers |
+| `ApprovalRequest` | `agent` | `treasurer`, `regulator` |
+| `AuditRecord` | `treasurer` + `agent` | `regulator` (cap/budget deliberately omitted) |
 
 ### 1. `SpendMandate` — the enforcement core
 
@@ -619,9 +652,12 @@ mandaterail/
 │   ├── Cash.daml                  # Iou tokenized-cash stub (DvP leg)
 │   ├── Purchase.daml              # PurchaseOrder (Authorized + Funded slice)
 │   ├── Rfq.daml                   # RfqQuote (sealed bid) + Accept
-│   ├── Mandate.daml               # SpendMandate + Commit + Revoke (enforcement core)
+│   ├── Mandate.daml               # SpendMandate + Commit/CommitApproved + Revoke (enforcement core)
+│   ├── Charter.daml               # TreasuryCharter (CEO+CFO multi-sig) + MintMandate (tighten-only)
+│   ├── Approval.daml              # ApprovalRequest (human-in-the-loop over-cap escalation)
+│   ├── Audit.daml                 # AuditRecord (immutable, regulator-observable verdicts)
 │   ├── Bootstrap.daml             # Daml Script: parties + balances (init-script)
-│   └── Tests.daml                 # Daml Script: 8 tests (caps, allow-list, race, revoke)
+│   └── Tests.daml                 # Daml Script: 14 tests (caps, allow-list, race, revoke, charter, escalation)
 ├── daml.js/                       # generated TS bindings (daml codegen js) - pnpm workspace pkg
 ├── agent/                         # Layer 3 - thin scripted buyer agent
 │   ├── src/
@@ -665,7 +701,7 @@ daml build
 daml start          # compiles Daml, starts sandbox + JSON API, runs Bootstrap script
 ```
 
-`daml start` boots a local Canton sandbox, deploys the DAR, exposes the JSON Ledger API (default `http://localhost:7575`), and runs `Bootstrap.daml` to create the demo parties (Treasurer, BuyerAgent, Supplier A/B/C, Bank) and opening cash balances.
+`daml start` boots a local Canton sandbox, deploys the DAR, exposes the JSON Ledger API (default `http://localhost:7575`), and runs `Bootstrap.daml` to create the demo parties (Treasurer, BuyerAgent, Bank, Regulator, CEO, CFO, Supplier A/B/C/D) and opening cash balances.
 
 ### 2. Generate TypeScript bindings
 
@@ -675,7 +711,7 @@ daml codegen js .daml/dist/*.dar -o daml.js
 
 This emits a `daml.js/` package consumed by `agent/` via the pnpm workspace (`pnpm-workspace.yaml`). Re-run after any change to the Daml model. (The `frontend/` UI does not use these bindings — it talks to the JSON API via `fetch`.)
 
-### 3. Run the UI (three panels)
+### 3. Run the UI (cockpit — four party panels)
 
 The UI is a standalone Next.js app in `frontend/` (a **backend-for-frontend**: its route handlers proxy the Daml JSON API and mint per-party tokens server-side). It needs the DAR's package id:
 
@@ -794,12 +830,18 @@ Daml Script tests prove the guarantees deterministically — these double as jud
 | `testSealedBids` | Supplier B cannot fetch / observe Supplier A's `RfqQuote` |
 | `testConcurrentCommitRace` | Two commits on the same mandate: one succeeds, one aborts on contention |
 | `testRevoke` | After `Revoke`, any subsequent `Commit` **fails** (no input contract) |
+| `testAuditEmitted` | `Commit` emits an immutable on-chain `AuditRecord` whose verdicts are **derived** from the ledger's own preconditions (not hardcoded) |
+| `testRegulatorSelectiveDisclosure` | The regulator sees the `PurchaseOrder` + `AuditRecord` but **not** the `SpendMandate` — cap/budget never reach its node |
+| `testCharterTightenOnly` | The `TreasuryCharter` is multi-sig (CEO + CFO); `MintMandate` above a ceiling **fails** (tighten-only) |
+| `testCharterRevokeCascade` | `RevokeByCharter` (CEO + CFO) actually fires: the agent's next `Commit` **fails** — a real top-layer cascade |
+| `testEscalationApprove` | An over-cap buy is blocked for the agent, but the treasurer can `Approve` an `ApprovalRequest` → a single over-cap purchase goes through, audited `humanApproved = true`, `underPerTxCap = false` (honest) |
+| `testEscalationReject` | The treasurer can `Reject` an escalation; nothing is committed and the budget is untouched |
 
 ```bash
 daml test          # runs all Daml Script tests
 ```
 
-> ✅ **All 8 tests pass on Daml SDK 2.10.4** (`daml build` + `daml test` green).
+> ✅ **All 14 tests pass on Daml SDK 2.10.4** (`daml build` + `daml test` green).
 
 ---
 
