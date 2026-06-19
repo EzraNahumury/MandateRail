@@ -447,37 +447,73 @@ export default function Landing() {
           </Reveal>
         </section>
 
-        {/* ---------------- CTA band ---------------- */}
-        <section className="py-14">
-          <div className="relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl bg-neutral-900 px-6 py-16 text-center text-white sm:px-12">
-            <div aria-hidden className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-lime-400/20 blur-3xl animate-blob" />
-            <div aria-hidden className="pointer-events-none absolute -bottom-10 right-0 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl animate-blob" style={{ animationDelay: "-9s" }} />
-            <ScrollFloat containerClassName="relative text-center" textClassName="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-              Bounded. Private. Atomic.
-            </ScrollFloat>
-            <p className="relative max-w-xl text-sm text-neutral-300">{project.oneLiner}</p>
-            <div className="relative flex flex-wrap justify-center gap-3">
-              <Link href={project.demoHref} className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:-translate-y-0.5">Launch the demo</Link>
-              <a href={project.repo} className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">View on GitHub</a>
+        {/* ---------------- Closing ---------------- */}
+        <section className="py-16 sm:py-24">
+          <Reveal>
+            <div className="grid items-center gap-12 lg:grid-cols-2">
+              <div>
+                <h2 className="text-4xl font-bold leading-[1.05] tracking-tight sm:text-5xl">
+                  Let agents buy.
+                  <br />
+                  Keep control.
+                </h2>
+                <p className="mt-5 max-w-md text-base leading-relaxed text-neutral-600">
+                  Put your AI procurement agents on rails. The ledger enforces every limit — and you can revoke in one click.
+                </p>
+                <Link
+                  href={project.demoHref}
+                  className="group mt-8 inline-flex items-center gap-3 rounded-full bg-neutral-900 px-7 py-3.5 text-sm font-bold uppercase tracking-wider text-white transition hover:-translate-y-0.5 hover:bg-neutral-800"
+                >
+                  Launch the demo
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-white/15 transition-transform group-hover:translate-x-0.5">
+                    <IconArrow />
+                  </span>
+                </Link>
+              </div>
+              <div className="lg:text-right">
+                <div className="text-5xl font-bold leading-[1.04] tracking-tight text-neutral-300 sm:text-6xl">Confidential spend</div>
+                <div className="text-5xl leading-[1.04] tracking-tight sm:text-6xl">
+                  <span className="font-serif italic text-neutral-400">native to</span>{" "}
+                  <span className="font-bold text-neutral-900">Canton.</span>
+                </div>
+              </div>
             </div>
-          </div>
+          </Reveal>
         </section>
       </main>
 
       {/* ---------------- Footer ---------------- */}
       <footer className="border-t border-neutral-200">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="MandateRail logo" width={24} height={24} className="h-6 w-6 rounded-full object-cover ring-1 ring-neutral-200" />
-            <span className="text-sm font-semibold">{project.name}</span>
-            <span className="hidden text-xs text-neutral-500 sm:inline">— {project.tagline}</span>
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-10 md:flex-row md:items-start md:justify-between">
+            <div className="flex items-center gap-2.5">
+              <Image src="/logo.png" alt="MandateRail logo" width={28} height={28} className="h-7 w-7 rounded-full object-cover ring-1 ring-neutral-200" />
+              <span className="text-sm font-bold tracking-[0.18em] text-neutral-900">MANDATERAIL</span>
+            </div>
+            <div className="flex gap-12 sm:gap-20">
+              <ul className="space-y-3 text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
+                <li><Link href="/" className="transition hover:text-neutral-900">Home</Link></li>
+                <li><Link href={project.demoHref} className="transition hover:text-neutral-900">Demo</Link></li>
+                <li><a href="#use-cases" className="transition hover:text-neutral-900">Use Cases</a></li>
+                <li><a href="#technology" className="transition hover:text-neutral-900">Technology</a></li>
+              </ul>
+              <ul className="space-y-3 text-[11px] font-medium uppercase tracking-[0.2em] text-neutral-500">
+                <li><a href={project.repo} className="transition hover:text-neutral-900">GitHub</a></li>
+                <li><a href={project.repo} className="transition hover:text-neutral-900">Docs</a></li>
+                <li><a href="https://canton.foundation/" className="transition hover:text-neutral-900">Canton</a></li>
+                <li><a href="https://www.digitalasset.com/" className="transition hover:text-neutral-900">Daml</a></li>
+              </ul>
+            </div>
+            <button
+              onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+              className="self-start text-sm text-neutral-600 transition hover:text-neutral-900"
+            >
+              Back to top ↑
+            </button>
           </div>
-          <div className="flex items-center gap-5 text-sm text-neutral-600">
-            <Link href={project.demoHref} className="hover:text-neutral-900">Demo</Link>
-            <a href={project.repo} className="hover:text-neutral-900">GitHub</a>
-            <a href={project.repo} className="hover:text-neutral-900">Docs</a>
+          <div className="mt-12 border-t border-neutral-200 pt-6 text-center text-xs text-neutral-400">
+            Built for the Build-on-Canton Hackathon · 2026 · Apache 2.0 License
           </div>
-          <div className="text-xs text-neutral-400">© 2026 {project.name} · Built on Canton</div>
         </div>
       </footer>
     </div>
