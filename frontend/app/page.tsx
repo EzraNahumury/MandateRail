@@ -27,7 +27,7 @@ export default function Home() {
   const [budgetMax, setBudgetMax] = useState(0);
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
-  const [role, setRole] = useState<Role>("cockpit");
+  const [session, setSession] = useState<Role | null>(null);
   const logId = useRef(0);
 
   const addLog = useCallback((kind: LogKind, text: string) => {
@@ -265,41 +265,84 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Login-as switcher */}
-        <div className="mb-5 flex flex-wrap items-center gap-1 rounded-xl bg-slate-900/70 p-1.5 ring-1 ring-slate-800">
-          <span className="px-2 text-xs font-medium text-slate-500">Logged in as</span>
-          {ROLES.map((r) => (
-            <button
-              key={r.key}
-              onClick={() => setRole(r.key)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                role === r.key ? "bg-slate-700 text-white shadow" : "text-slate-400 hover:text-slate-200"
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-          <span className="ml-auto px-2 text-[11px] text-slate-600">
-            auth via per-party JWT (enterprise SSO/OIDC) — no browser wallet
-          </span>
-        </div>
-
-        {/* Panels */}
-        {role === "cockpit" ? (
-          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-            {treasurerCard}
-            {agentCard}
-            {supplierCard}
+        {session === null ? (
+          /* Login screen — Canton identity, no browser wallet */
+          <div className="grid min-h-[58vh] place-items-center">
+            <div className="w-full max-w-md rounded-2xl bg-slate-900/70 p-6 ring-1 ring-slate-800">
+              <h2 className="text-lg font-semibold text-white">Sign in</h2>
+              <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                Canton has no browser wallet. Choose the <span className="text-slate-300">party</span> (identity) to act
+                as — auth is a per-party JWT minted server-side (enterprise SSO/OIDC in production).
+              </p>
+              <div className="mt-4 space-y-2">
+                {(
+                  [
+                    ["treasurer", "Treasurer Console", "issuer · holds mandate authority"],
+                    ["agent", "Buyer Agent", "autonomous buyer"],
+                    ["supplier", "Supplier A", "counterparty"],
+                  ] as const
+                ).map(([key, title, sub]) => (
+                  <button
+                    key={key}
+                    onClick={() => setSession(key)}
+                    className="flex w-full items-center justify-between rounded-lg bg-slate-800 px-4 py-3 text-left transition hover:bg-slate-700"
+                  >
+                    <span className="text-sm font-semibold text-slate-100">{title}</span>
+                    <span className="text-[11px] text-slate-400">{sub}</span>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setSession("cockpit")}
+                className="mt-3 w-full rounded-lg border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-800"
+              >
+                Open cockpit — view all parties (demo)
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="mx-auto max-w-xl">
-            <div className="mb-3 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-xs text-slate-400">
-              <span className="font-semibold text-slate-200">🔑 Session: {ROLES.find((r) => r.key === role)?.label}</span>
-              {" — "}
-              {sessionNote[role]}
+          <>
+            {/* Session bar: switch identity or log out */}
+            <div className="mb-5 flex flex-wrap items-center gap-1 rounded-xl bg-slate-900/70 p-1.5 ring-1 ring-slate-800">
+              <span className="px-2 text-xs font-medium text-slate-500">Logged in as</span>
+              {ROLES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setSession(r.key)}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    session === r.key ? "bg-slate-700 text-white shadow" : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setSession(null)}
+                className="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/10"
+              >
+                Log out
+              </button>
             </div>
-            {role === "treasurer" ? treasurerCard : role === "agent" ? agentCard : supplierCard}
-          </div>
+
+            {session === "cockpit" ? (
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+                {treasurerCard}
+                {agentCard}
+                {supplierCard}
+              </div>
+            ) : (
+              <div className="mx-auto max-w-xl">
+                <div className="mb-3 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-xs text-slate-400">
+                  <span className="font-semibold text-slate-200">
+                    🔑 Session: {ROLES.find((r) => r.key === session)?.label}
+                  </span>
+                  {" — "}
+                  {sessionNote[session as "treasurer" | "agent" | "supplier"]}
+                </div>
+                {session === "treasurer" ? treasurerCard : session === "agent" ? agentCard : supplierCard}
+              </div>
+            )}
+          </>
         )}
 
         <footer className="mt-8 text-center text-[11px] text-slate-600">
