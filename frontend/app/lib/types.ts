@@ -60,6 +60,15 @@ export interface AuditEntry {
 
 export type QuoteKind = "compliant" | "over-cap" | "off-list";
 
+export interface CharterPayload {
+  ceo: string;
+  cfo: string;
+  treasurer: string;
+  regulator: string;
+  ceilingPerTxCap: string;
+  ceilingBudget: string;
+}
+
 export interface StateSnapshot {
   treasurer: {
     mandate: {
@@ -69,6 +78,7 @@ export interface StateSnapshot {
       approvedSuppliers: string[];
       expiry: string;
     } | null;
+    charter: { ceilingPerTxCap: string; ceilingBudget: string } | null;
   };
   agent: {
     hasMandate: boolean;

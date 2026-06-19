@@ -119,6 +119,7 @@ export default function Home() {
     });
 
   const mandate = snap?.treasurer.mandate ?? null;
+  const charter = snap?.treasurer.charter ?? null;
   const supplier = snap?.supplier;
   const agent = snap?.agent;
 
@@ -126,6 +127,14 @@ export default function Home() {
 
   const treasurerCard = (
     <Card title="Treasurer Console" subtitle="issuer" accent="sky">
+      {charter && (
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-sky-50 px-3 py-2 text-[11px] ring-1 ring-sky-100">
+          <span className="font-semibold text-sky-700">⛓ Chartered by CEO + CFO</span>
+          <span className="ml-auto font-mono text-sky-600">
+            ceiling ≤ ${money(charter.ceilingPerTxCap)}/tx · ${money(charter.ceilingBudget)}
+          </span>
+        </div>
+      )}
       {mandate ? (
         <>
           <MoneyGauge

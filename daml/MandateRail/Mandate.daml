@@ -26,6 +26,8 @@ template SpendMandate
     agent             : Party
     bank              : Party
     regulator         : Party
+    charterCeo        : Party
+    charterCfo        : Party
     category          : Text
     perTxCap          : Decimal
     remainingBudget   : Decimal
@@ -33,10 +35,11 @@ template SpendMandate
     approvedSuppliers : [Party]
   where
     signatory treasurer
-    observer agent
+    observer agent, charterCeo, charterCfo
     -- NOTE: the regulator is deliberately NOT an observer of the mandate, so the
     -- cap and remaining budget never reach its node (selective disclosure). The
     -- regulator only sees the PurchaseOrder + AuditRecord emitted by Commit.
+    -- The chartering CEO + CFO ARE observers — they are the top authority layer.
 
     ensure perTxCap > 0.0 && remainingBudget >= 0.0
 
@@ -102,4 +105,11 @@ template SpendMandate
     -- agent's next Commit fails because its input contract no longer exists.
     choice Revoke : ()
       controller treasurer
+      do pure ()
+
+    -- Top-layer kill switch: the CEO + CFO who chartered this mandate can revoke
+    -- it (real multi-sig). Archiving the mandate makes the agent's next Commit
+    -- fail — a cascade from the authority layer above, and it actually fires.
+    choice RevokeByCharter : ()
+      controller charterCeo, charterCfo
       do pure ()

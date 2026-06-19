@@ -16,6 +16,7 @@ export const TID = {
   po: `${PKG}:MandateRail.Purchase:PurchaseOrder`,
   iou: `${PKG}:MandateRail.Cash:Iou`,
   audit: `${PKG}:MandateRail.Audit:AuditRecord`,
+  charter: `${PKG}:MandateRail.Charter:TreasuryCharter`,
 };
 
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");

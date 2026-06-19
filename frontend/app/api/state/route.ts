@@ -6,6 +6,7 @@ import type {
   POPayload,
   AuditPayload,
   AuditEntry,
+  CharterPayload,
   StateSnapshot,
   QuoteKind,
 } from "@/app/lib/types";
@@ -35,9 +36,12 @@ export async function GET() {
     const byNewest = (a: { committedAt: string }, b: { committedAt: string }) =>
       b.committedAt.localeCompare(a.committedAt);
 
-    // Treasurer's view — sees the mandate (cap + remaining).
-    const tMandates = await query<MandatePayload>(tok("Treasurer"), [TID.mandate]);
+    // Treasurer's view — sees the mandate (cap + remaining) + the charter ceilings.
+    const treasurerTok = tok("Treasurer");
+    const tMandates = await query<MandatePayload>(treasurerTok, [TID.mandate]);
     const mandate = tMandates[0]?.payload ?? null;
+    const tCharters = await query<CharterPayload>(treasurerTok, [TID.charter]);
+    const charter = tCharters[0]?.payload ?? null;
 
     // Agent's view — runs the auction (sees all quotes), POs + audit it co-signed.
     const agentTok = tok("BuyerAgent");
@@ -78,6 +82,9 @@ export async function GET() {
               approvedSuppliers: mandate.approvedSuppliers.map(label),
               expiry: mandate.expiry,
             }
+          : null,
+        charter: charter
+          ? { ceilingPerTxCap: charter.ceilingPerTxCap, ceilingBudget: charter.ceilingBudget }
           : null,
       },
       agent: {

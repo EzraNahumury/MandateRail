@@ -9,6 +9,7 @@ import MandateRail.Cash
 import MandateRail.Mandate
 import MandateRail.Rfq
 import MandateRail.Audit
+import MandateRail.Charter
 
 -- A fresh world for each test.
 data World = World with
@@ -16,6 +17,8 @@ data World = World with
     agent     : Party
     bank      : Party
     regulator : Party
+    ceo       : Party
+    cfo       : Party
     supA      : Party
     supB      : Party
     supD      : Party
@@ -28,6 +31,8 @@ setupWorld cap budget = do
   agent     <- allocateParty "BuyerAgent"
   bank      <- allocateParty "Bank"
   regulator <- allocateParty "Regulator"
+  ceo       <- allocateParty "CEO"
+  cfo       <- allocateParty "CFO"
   supA      <- allocateParty "SupplierA"
   supB      <- allocateParty "SupplierB"
   supD      <- allocateParty "SupplierD"
@@ -41,12 +46,14 @@ setupWorld cap budget = do
       agent = agent
       bank = bank
       regulator = regulator
+      charterCeo = ceo
+      charterCfo = cfo
       category = "cloud-compute"
       perTxCap = cap
       remainingBudget = budget
       expiry = expiry
       approvedSuppliers = [supA, supB]
-  pure World with treasurer, agent, bank, regulator, supA, supB, supD, mandate, cash
+  pure World with treasurer, agent, bank, regulator, ceo, cfo, supA, supB, supD, mandate, cash
 
 mkQuote : Party -> Party -> Decimal -> Script (ContractId RfqQuote)
 mkQuote supplier agent price =
@@ -160,3 +167,38 @@ testRegulatorSelectiveDisclosure = do
   assertMsg "regulator must see the audit" (isSome auditSeen)
   mandateSeen <- queryContractId w.regulator res.mandate
   mandateSeen === None
+
+-- 11. The charter is multi-sig (CEO+CFO) and MintMandate can only TIGHTEN the
+--     ceilings: minting above the per-tx ceiling is rejected by the ledger.
+testCharterTightenOnly : Script ()
+testCharterTightenOnly = do
+  w <- setupWorld 10000.0 50000.0
+  now <- getTime
+  let expiry = addRelTime now (hours 720)
+  charter <- submitMulti [w.ceo, w.cfo] [] do
+    createCmd TreasuryCharter with
+      ceo = w.ceo, cfo = w.cfo, treasurer = w.treasurer, regulator = w.regulator
+      ceilingPerTxCap = 15000.0, ceilingBudget = 100000.0
+  -- within ceiling: ok
+  _ok <- submit w.treasurer do
+    exerciseCmd charter MintMandate with
+      agent = w.agent, bank = w.bank, category = "cloud-compute"
+      perTxCap = 10000.0, remainingBudget = 50000.0, expiry = expiry
+      approvedSuppliers = [w.supA, w.supB]
+  -- over the per-tx ceiling: rejected
+  submitMustFail w.treasurer do
+    exerciseCmd charter MintMandate with
+      agent = w.agent, bank = w.bank, category = "cloud-compute"
+      perTxCap = 20000.0, remainingBudget = 50000.0, expiry = expiry
+      approvedSuppliers = [w.supA, w.supB]
+
+-- 12. Charter-level revoke (CEO+CFO multi-sig) actually fires: after
+--     RevokeByCharter the agent's next Commit fails — a real top-layer cascade.
+testCharterRevokeCascade : Script ()
+testCharterRevokeCascade = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  submitMulti [w.ceo, w.cfo] [] do
+    exerciseCmd w.mandate RevokeByCharter
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "x"

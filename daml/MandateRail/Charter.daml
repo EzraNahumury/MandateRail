@@ -1,0 +1,50 @@
+module MandateRail.Charter where
+
+import MandateRail.Mandate
+
+-- | The top authority layer. A TreasuryCharter is signed by BOTH the CEO and the
+-- CFO (real multi-sig) and sets absolute ceilings. A treasurer can mint an
+-- operational SpendMandate from it, but only one that TIGHTENS the ceilings —
+-- never loosens them. The "child can only tighten the parent" invariant is
+-- enforced by the ledger here (assertMsg), so it actually fires.
+template TreasuryCharter
+  with
+    ceo             : Party
+    cfo             : Party
+    treasurer       : Party
+    regulator       : Party
+    ceilingPerTxCap : Decimal
+    ceilingBudget   : Decimal
+  where
+    signatory ceo, cfo
+    observer treasurer, regulator
+
+    ensure ceilingPerTxCap > 0.0 && ceilingBudget > 0.0
+
+    -- The treasurer mints an operational mandate within the chartered ceilings.
+    -- NONCONSUMING: one charter can mint/re-mint many mandates over its life.
+    nonconsuming choice MintMandate : ContractId SpendMandate
+      with
+        agent             : Party
+        bank              : Party
+        category          : Text
+        perTxCap          : Decimal
+        remainingBudget   : Decimal
+        expiry            : Time
+        approvedSuppliers : [Party]
+      controller treasurer
+      do
+        assertMsg "per-tx cap exceeds charter ceiling" (perTxCap <= ceilingPerTxCap)
+        assertMsg "budget exceeds charter ceiling"     (remainingBudget <= ceilingBudget)
+        create SpendMandate with
+          treasurer
+          agent
+          bank
+          regulator
+          charterCeo = ceo
+          charterCfo = cfo
+          category
+          perTxCap
+          remainingBudget
+          expiry
+          approvedSuppliers

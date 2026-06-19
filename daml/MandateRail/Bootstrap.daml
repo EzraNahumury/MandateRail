@@ -6,6 +6,7 @@ import Daml.Script
 import MandateRail.Cash
 import MandateRail.Mandate
 import MandateRail.Rfq
+import MandateRail.Charter
 
 -- | Init script for `daml start`. Allocates the demo parties, funds the
 -- treasury, issues the mandate, and seeds three sealed quotes.
@@ -19,6 +20,8 @@ setup = do
   supC      <- allocateParty "SupplierC"
   supD      <- allocateParty "SupplierD"
   regulator <- allocateParty "Regulator"
+  ceo       <- allocateParty "CEO"
+  cfo       <- allocateParty "CFO"
 
   now <- getTime
   let expiry = addRelTime now (hours (24 * 30)) -- 30 days
@@ -28,13 +31,23 @@ setup = do
   _cash <- submit bank do
     createCmd Iou with bank = bank, owner = treasurer, amount = 50000.0, observers = [agent]
 
-  -- The spend mandate: $50k cumulative, $10k/tx, suppliers A/B/C only.
-  _mandate <- submit treasurer do
-    createCmd SpendMandate with
+  -- LAYER 1 — TreasuryCharter signed by BOTH the CEO and the CFO (multi-sig),
+  -- setting absolute ceilings.
+  charter <- submitMulti [ceo, cfo] [] do
+    createCmd TreasuryCharter with
+      ceo = ceo
+      cfo = cfo
       treasurer = treasurer
+      regulator = regulator
+      ceilingPerTxCap = 15000.0
+      ceilingBudget = 100000.0
+
+  -- LAYER 2 — the treasurer mints an operational mandate WITHIN the ceilings
+  -- ($10k/tx <= $15k, $50k <= $100k): a real tighten-only delegation that fires.
+  _mandate <- submit treasurer do
+    exerciseCmd charter MintMandate with
       agent = agent
       bank = bank
-      regulator = regulator
       category = "cloud-compute"
       perTxCap = 10000.0
       remainingBudget = 50000.0
