@@ -1,0 +1,50 @@
+module MandateRail.Bootstrap where
+
+import DA.Time (hours, addRelTime)
+import Daml.Script
+
+import MandateRail.Cash
+import MandateRail.Mandate
+import MandateRail.Rfq
+
+-- | Init script for `daml start`. Allocates the demo parties, funds the
+-- treasury, issues the mandate, and seeds three sealed quotes.
+setup : Script ()
+setup = do
+  treasurer <- allocateParty "Treasurer"
+  agent     <- allocateParty "BuyerAgent"
+  bank      <- allocateParty "Bank"
+  supA      <- allocateParty "SupplierA"
+  supB      <- allocateParty "SupplierB"
+  supC      <- allocateParty "SupplierC"
+  supD      <- allocateParty "SupplierD"
+
+  now <- getTime
+  let expiry = addRelTime now (hours (24 * 30)) -- 30 days
+
+  -- Treasury cash (owned by the treasurer, earmarked/disclosed to the agent
+  -- so Commit can settle it without the agent ever owning it).
+  _cash <- submit bank do
+    createCmd Iou with bank = bank, owner = treasurer, amount = 50000.0, observers = [agent]
+
+  -- The spend mandate: $50k cumulative, $10k/tx, suppliers A/B/C only.
+  _mandate <- submit treasurer do
+    createCmd SpendMandate with
+      treasurer = treasurer
+      agent = agent
+      bank = bank
+      category = "cloud-compute"
+      perTxCap = 10000.0
+      remainingBudget = 50000.0
+      expiry = expiry
+      approvedSuppliers = [supA, supB, supC]
+
+  -- Sealed quotes from the approved suppliers.
+  _qA <- submit supA do
+    createCmd RfqQuote with supplier = supA, agent = agent, category = "cloud-compute", price = 9000.0
+  _qB <- submit supB do
+    createCmd RfqQuote with supplier = supB, agent = agent, category = "cloud-compute", price = 9500.0
+  _qC <- submit supC do
+    createCmd RfqQuote with supplier = supC, agent = agent, category = "cloud-compute", price = 9200.0
+
+  pure ()

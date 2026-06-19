@@ -1,0 +1,40 @@
+module MandateRail.Cash where
+
+-- | Tokenized-cash stub (an IOU) used as the DvP settlement leg.
+-- The hardened version uses Daml Finance holdings. `Transfer` returns
+-- (payee Iou, optional change Iou) so funds are always conserved.
+--
+-- `observers` is the explicit-disclosure list: the treasury earmarks a
+-- holding for a mandate by disclosing it to the buyer agent, so the agent
+-- can settle it inside Commit without ever owning or controlling it.
+template Iou
+  with
+    bank      : Party
+    owner     : Party
+    amount    : Decimal
+    observers : [Party]
+  where
+    signatory bank
+    observer owner, observers
+
+    ensure amount > 0.0
+
+    -- Consuming by default: archives the source Iou and re-mints payee + change.
+    -- Exercising a choice on this bank-signed contract contributes the bank's
+    -- authority, so the freshly created Iou (signatory bank) is authorized.
+    choice Transfer : (ContractId Iou, Optional (ContractId Iou))
+      with
+        newOwner       : Party
+        transferAmount : Decimal
+      controller owner
+      do
+        assertMsg "transfer amount must be positive" (transferAmount > 0.0)
+        assertMsg "insufficient funds" (transferAmount <= amount)
+        -- the payee's cash is private (no earmark observers carried over)
+        paid <- create this with owner = newOwner, amount = transferAmount, observers = []
+        -- change stays with the original owner, keeping the same disclosure
+        change <-
+          if transferAmount < amount
+            then Some <$> create this with amount = amount - transferAmount
+            else pure None
+        pure (paid, change)

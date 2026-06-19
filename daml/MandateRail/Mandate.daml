@@ -1,0 +1,78 @@
+module MandateRail.Mandate where
+
+import MandateRail.Cash
+import MandateRail.Rfq
+import MandateRail.Purchase
+
+-- | Result of a successful Commit: the recreated mandate (reduced budget),
+-- the binding purchase order, and the cash now owned by the supplier.
+data CommitResult = CommitResult with
+    mandate       : ContractId SpendMandate
+    purchaseOrder : ContractId PurchaseOrder
+    cash          : ContractId Iou
+  deriving (Eq, Show)
+
+-- | The enforcement core. A treasurer issues a SpendMandate to a named agent.
+-- Every limit (per-tx cap, cumulative budget, expiry, allow-list) is enforced
+-- as a precondition of the Commit choice — by the ledger, not by app code or
+-- a prompt. The agent (only an observer) can never see anything it is not a
+-- stakeholder of, and can never act outside the encoded mandate.
+template SpendMandate
+  with
+    treasurer         : Party
+    agent             : Party
+    bank              : Party
+    category          : Text
+    perTxCap          : Decimal
+    remainingBudget   : Decimal
+    expiry            : Time
+    approvedSuppliers : [Party]
+  where
+    signatory treasurer
+    observer agent
+
+    ensure perTxCap > 0.0 && remainingBudget >= 0.0
+
+    -- Agent commits a compliant purchase. CONSUMING (default): archives this
+    -- mandate and recreates it with reduced remainingBudget (the anti-race
+    -- mechanism). `cashCid` MUST be a treasury-owned Iou so that owner
+    -- (treasurer) authority is in scope for the Transfer.
+    choice Commit : CommitResult
+      with
+        quoteCid : ContractId RfqQuote
+        amount   : Decimal
+        cashCid  : ContractId Iou
+      controller agent
+      do
+        now   <- getTime
+        quote <- fetch quoteCid
+
+        -- LEDGER-ENFORCED POLICY (not app logic, not a prompt):
+        assertMsg "amount exceeds per-tx cap"       (amount <= perTxCap)
+        assertMsg "amount exceeds remaining budget" (amount <= remainingBudget)
+        assertMsg "supplier not on allow-list"      (quote.supplier `elem` approvedSuppliers)
+        assertMsg "category mismatch"               (quote.category == category)
+        assertMsg "mandate expired"                 (now < expiry)
+        assertMsg "amount must match quoted price"  (amount == quote.price)
+
+        -- Bring in the supplier's authority via their standing sealed offer.
+        poCid <- exercise quoteCid Accept with buyerAgent = agent
+
+        -- Settle tokenized cash (treasury-owned -> owner authority in scope).
+        (paidCash, _change) <- exercise cashCid Transfer with
+                                 newOwner       = quote.supplier
+                                 transferAmount = amount
+
+        -- Archive-and-recreate: contention-safe cumulative cap.
+        newMandate <- create this with remainingBudget = remainingBudget - amount
+
+        pure CommitResult with
+          mandate       = newMandate
+          purchaseOrder = poCid
+          cash          = paidCash
+
+    -- Instant kill switch. CONSUMING (default): archives the mandate, so the
+    -- agent's next Commit fails because its input contract no longer exists.
+    choice Revoke : ()
+      controller treasurer
+      do pure ()

@@ -1,0 +1,33 @@
+module MandateRail.Rfq where
+
+import MandateRail.Purchase
+
+-- | Sealed-bid quote. Signatory is the supplier; the ONLY observer is the
+-- buyer agent. Rival suppliers are never observers, so a quote never reaches
+-- a competitor's node — this is the sealed-bid privacy property.
+template RfqQuote
+  with
+    supplier : Party
+    agent    : Party
+    category : Text
+    price    : Decimal
+  where
+    signatory supplier
+    observer agent
+
+    ensure price > 0.0
+
+    -- Consuming: a quote is single-use (no replay). Exercising this
+    -- supplier-signed choice contributes the supplier's authority, which is
+    -- what lets the agent + supplier co-sign the resulting PurchaseOrder.
+    choice Accept : ContractId PurchaseOrder
+      with
+        buyerAgent : Party
+      controller buyerAgent
+      do
+        create PurchaseOrder with
+          agent    = buyerAgent
+          supplier = supplier
+          category = category
+          amount   = price
+          status   = "AUTHORIZED_FUNDED"

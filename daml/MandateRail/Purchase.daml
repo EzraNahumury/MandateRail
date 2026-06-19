@@ -1,0 +1,14 @@
+module MandateRail.Purchase where
+
+-- | The binding commitment AND the supplier's "Authorized + Funded"
+-- need-to-know slice. It deliberately contains NOTHING about the mandate
+-- cap or remaining budget — only the agreed line item.
+template PurchaseOrder
+  with
+    agent    : Party
+    supplier : Party
+    category : Text
+    amount   : Decimal
+    status   : Text
+  where
+    signatory agent, supplier

@@ -1,0 +1,20 @@
+# Daml build artifacts
+.daml/
+*.dar
+dist/
+
+# Generated TypeScript bindings
+daml.js/
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Env / secrets
+.env
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

@@ -1,0 +1,126 @@
+module MandateRail.Tests where
+
+import DA.Assert ((===))
+import DA.Optional (isSome)
+import DA.Time (hours, addRelTime)
+import Daml.Script
+
+import MandateRail.Cash
+import MandateRail.Mandate
+import MandateRail.Rfq
+
+-- A fresh world for each test.
+data World = World with
+    treasurer : Party
+    agent     : Party
+    bank      : Party
+    supA      : Party
+    supB      : Party
+    supD      : Party
+    mandate   : ContractId SpendMandate
+    cash      : ContractId Iou
+
+setupWorld : Decimal -> Decimal -> Script World
+setupWorld cap budget = do
+  treasurer <- allocateParty "Treasurer"
+  agent     <- allocateParty "BuyerAgent"
+  bank      <- allocateParty "Bank"
+  supA      <- allocateParty "SupplierA"
+  supB      <- allocateParty "SupplierB"
+  supD      <- allocateParty "SupplierD"
+  now <- getTime
+  let expiry = addRelTime now (hours 720) -- 30 days
+  cash <- submit bank do
+    createCmd Iou with bank = bank, owner = treasurer, amount = budget, observers = [agent]
+  mandate <- submit treasurer do
+    createCmd SpendMandate with
+      treasurer = treasurer
+      agent = agent
+      bank = bank
+      category = "cloud-compute"
+      perTxCap = cap
+      remainingBudget = budget
+      expiry = expiry
+      approvedSuppliers = [supA, supB]
+  pure World with treasurer, agent, bank, supA, supB, supD, mandate, cash
+
+mkQuote : Party -> Party -> Decimal -> Script (ContractId RfqQuote)
+mkQuote supplier agent price =
+  submit supplier do
+    createCmd RfqQuote with supplier = supplier, agent = agent, category = "cloud-compute", price = price
+
+-- 1. A compliant commit debits the mandate, mints the PO, and settles cash atomically.
+testHappyPath : Script ()
+testHappyPath = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  res <- submit w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+  Some po <- queryContractId w.supA res.purchaseOrder
+  po.amount === 9000.0
+  po.status === "AUTHORIZED_FUNDED"
+  Some m <- queryContractId w.treasurer res.mandate
+  m.remainingBudget === 41000.0
+
+-- 2. Over the per-transaction cap is rejected by the ledger.
+testOverPerTxCap : Script ()
+testOverPerTxCap = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 12000.0
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 12000.0, cashCid = w.cash
+
+-- 3. Over the cumulative remaining budget is rejected.
+testOverCumulativeCap : Script ()
+testOverCumulativeCap = do
+  w <- setupWorld 10000.0 5000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+
+-- 4. A supplier not on the allow-list is rejected.
+testUnapprovedSupplier : Script ()
+testUnapprovedSupplier = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supD w.agent 9000.0
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+
+-- 5. Committing after expiry is rejected.
+testExpiredMandate : Script ()
+testExpiredMandate = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  passTime (hours 721) -- move past the 720h expiry
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash
+
+-- 6. Sealed bids: a rival supplier cannot observe another's quote; the agent can.
+testSealedBids : Script ()
+testSealedBids = do
+  w <- setupWorld 10000.0 50000.0
+  qA <- mkQuote w.supA w.agent 9000.0
+  visibleToRival <- queryContractId w.supB qA
+  visibleToRival === None
+  visibleToAgent <- queryContractId w.agent qA
+  assertMsg "agent must see the quote" (isSome visibleToAgent)
+
+-- 7. Two commits on the same mandate: the second aborts (contention-safe cap).
+testConcurrentCommitRace : Script ()
+testConcurrentCommitRace = do
+  w <- setupWorld 10000.0 50000.0
+  qA <- mkQuote w.supA w.agent 9000.0
+  qB <- mkQuote w.supB w.agent 9000.0
+  _ <- submit w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = qA, amount = 9000.0, cashCid = w.cash
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = qB, amount = 9000.0, cashCid = w.cash
+
+-- 8. After Revoke, any subsequent Commit fails (no input contract).
+testRevoke : Script ()
+testRevoke = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  submit w.treasurer do exerciseCmd w.mandate Revoke
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash

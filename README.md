@@ -439,12 +439,13 @@ template PurchaseOrder
 ```haskell
 template Iou
   with
-    bank   : Party
-    owner  : Party
-    amount : Decimal
+    bank      : Party
+    owner     : Party
+    amount    : Decimal
+    observers : [Party]      -- explicit-disclosure list (earmarking)
   where
     signatory bank
-    observer  owner
+    observer  owner, observers
 
     -- Simplified for the MVP. The hardened version uses Daml Finance holdings.
     -- Returns (Iou for the payee, optional change Iou back to the sender) so funds are
@@ -457,12 +458,14 @@ template Iou
       controller owner
       do
         assertMsg "insufficient funds" (transferAmount <= amount)
-        paid   <- create this with owner = newOwner, amount = transferAmount
+        paid   <- create this with owner = newOwner, amount = transferAmount, observers = []
         change <- if transferAmount < amount
                     then Some <$> create this with amount = amount - transferAmount
                     else pure None
         pure (paid, change)
 ```
+
+> **Earmarking / explicit disclosure.** Authority and *visibility* are separate in Daml: the agent gets the treasurer's authority to `Transfer` (delegated via the mandate's signatory), but it must still be able to *see* the cash contract to use it as input. So the treasury **earmarks** a holding for the mandate by disclosing it to the agent (`observers = [agent]`) — the agent can settle it inside `Commit` without ever owning or controlling it, and the payee's received cash carries no earmark (`observers = []`).
 
 ### The anti-race cumulative cap (a question judges will ask)
 
@@ -607,16 +610,14 @@ flowchart TB
 
 ```
 mandaterail/
-├── daml/                          # Layer 1 - the enforcement core
-│   ├── daml.yaml                  # source: . | init-script: MandateRail.Bootstrap:setup
-│   └── MandateRail/
-│       ├── Types.daml             # shared records, enums
-│       ├── Mandate.daml           # SpendMandate + Commit + Revoke
-│       ├── Rfq.daml               # RfqQuote (sealed bid) + Accept
-│       ├── Purchase.daml          # PurchaseOrder
-│       ├── Cash.daml              # Iou tokenized-cash stub
-│       ├── Bootstrap.daml         # Daml Script: parties + opening balances (init-script)
-│       └── Tests.daml             # Daml Script: caps, allow-list, race, revoke
+├── daml.yaml                      # sdk 2.10.4 | source: daml | init-script: MandateRail.Bootstrap:setup
+├── daml/MandateRail/              # Layer 1 - the enforcement core
+│   ├── Cash.daml                  # Iou tokenized-cash stub (DvP leg)
+│   ├── Purchase.daml              # PurchaseOrder (Authorized + Funded slice)
+│   ├── Rfq.daml                   # RfqQuote (sealed bid) + Accept
+│   ├── Mandate.daml               # SpendMandate + Commit + Revoke (enforcement core)
+│   ├── Bootstrap.daml             # Daml Script: parties + balances (init-script)
+│   └── Tests.daml                 # Daml Script: 8 tests (caps, allow-list, race, revoke)
 ├── daml.js/                       # generated TS bindings (daml codegen js) - pnpm workspace pkg
 ├── agent/                         # Layer 3 - thin scripted buyer agent
 │   ├── src/
@@ -636,6 +637,7 @@ mandaterail/
 │   ├── diagrams/                  # architecture, sequence, privacy, screenshots
 │   └── deck.pdf                   # presentation deck (submission)
 ├── pnpm-workspace.yaml            # links daml.js, agent, ui
+├── .gitignore
 ├── LICENSE
 └── README.md
 ```
@@ -770,6 +772,8 @@ Daml Script tests prove the guarantees deterministically — these double as jud
 ```bash
 daml test          # runs all Daml Script tests
 ```
+
+> ✅ **All 8 tests pass on Daml SDK 2.10.4** (`daml build` + `daml test` green).
 
 ---
 
