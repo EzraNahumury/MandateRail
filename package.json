@@ -1,0 +1,18 @@
+{
+  "name": "mandaterail",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Confidential, ledger-enforced spend mandates for agentic procurement on Canton.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build:daml": "daml build",
+    "codegen": "daml codegen js .daml/dist/mandaterail-1.0.0.dar -o daml.js",
+    "test:daml": "daml test",
+    "ledger": "daml start"
+  },
+  "devDependencies": {
+    "@daml/types": "2.10.4",
+    "@daml/ledger": "2.10.4",
+    "@daml/react": "2.10.4"
+  }
+}

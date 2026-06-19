@@ -1,0 +1,6 @@
+packages:
+  # Generated Daml TypeScript bindings (run `pnpm codegen` to (re)generate).
+  - 'daml.js/*'
+  # Application layers (added in later build steps).
+  - 'agent'
+  - 'ui'
