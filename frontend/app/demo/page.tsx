@@ -110,13 +110,13 @@ export default function Home() {
             remaining={Number(mandate.remainingBudget)}
             total={budgetMax || Number(mandate.remainingBudget)}
           />
-          <div className="space-y-2 border-t border-slate-800 pt-3">
+          <div className="space-y-2 border-t border-neutral-100 pt-3">
             <Stat label="Per-transaction cap" value={`$${money(mandate.perTxCap)}`} mono />
             <Stat label="Category" value={mandate.category} />
             <Stat label="Expires" value={new Date(mandate.expiry).toLocaleDateString()} />
           </div>
           <div>
-            <div className="mb-1.5 text-xs text-slate-400">Approved suppliers</div>
+            <div className="mb-1.5 text-xs text-neutral-500">Approved suppliers</div>
             <div className="flex flex-wrap gap-1.5">
               {mandate.approvedSuppliers.map((s) => (
                 <Chip key={s} tone="emerald">
@@ -127,7 +127,7 @@ export default function Home() {
           </div>
         </>
       ) : (
-        <p className="text-sm text-slate-500">No active mandate. Issue one to begin.</p>
+        <p className="text-sm text-neutral-500">No active mandate. Issue one to begin.</p>
       )}
       <div className="mt-auto flex gap-2 pt-2">
         <Button variant="ghost" onClick={onIssue} disabled={busy}>
@@ -142,15 +142,15 @@ export default function Home() {
 
   const agentCard = (
     <Card title="Buyer Agent" subtitle="runs the sealed auction" accent="violet">
-      <div className="rounded-lg bg-slate-950/50 p-3 ring-1 ring-slate-800">
-        <div className="mb-2 text-xs text-slate-400">Sealed quotes (rivals can&apos;t see each other)</div>
+      <div className="rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200">
+        <div className="mb-2 text-xs text-neutral-500">Sealed quotes (rivals can&apos;t see each other)</div>
         <div className="space-y-1.5">
           {agent?.quotes.length ? (
             agent.quotes.map((q, i) => (
               <div key={i} className="flex items-center justify-between text-sm">
-                <span className="text-slate-300">{q.supplier}</span>
+                <span className="text-neutral-700">{q.supplier}</span>
                 <span className="flex items-center gap-2">
-                  <span className="font-mono text-slate-200">${money(q.price)}</span>
+                  <span className="font-mono text-neutral-900">${money(q.price)}</span>
                   <Chip tone={q.kind === "compliant" ? "emerald" : q.kind === "over-cap" ? "amber" : "red"}>
                     {q.kind}
                   </Chip>
@@ -158,7 +158,7 @@ export default function Home() {
               </div>
             ))
           ) : (
-            <p className="text-sm text-slate-500">No quotes.</p>
+            <p className="text-sm text-neutral-400">No quotes.</p>
           )}
         </div>
       </div>
@@ -176,23 +176,23 @@ export default function Home() {
       </div>
 
       <div className="flex-1">
-        <div className="mb-1.5 text-xs text-slate-400">Ledger activity</div>
+        <div className="mb-1.5 text-xs text-neutral-500">Ledger activity</div>
         <div className="space-y-1.5">
-          {log.length === 0 && <p className="text-sm text-slate-600">Awaiting actions…</p>}
+          {log.length === 0 && <p className="text-sm text-neutral-400">Awaiting actions…</p>}
           {log.map((e) => (
             <div
               key={e.id}
-              className={`rounded-md border-l-2 bg-slate-950/40 px-3 py-2 text-xs ${
+              className={`rounded-md border-l-2 bg-neutral-50 px-3 py-2 text-xs ${
                 e.kind === "ok"
-                  ? "border-emerald-500 text-emerald-200"
+                  ? "border-emerald-500 text-emerald-700"
                   : e.kind === "reject"
-                    ? "border-red-500 text-red-200"
+                    ? "border-red-500 text-red-700"
                     : e.kind === "error"
-                      ? "border-amber-500 text-amber-200"
-                      : "border-sky-500 text-sky-200"
+                      ? "border-amber-500 text-amber-700"
+                      : "border-sky-500 text-sky-700"
               }`}
             >
-              <span className="mr-2 font-mono text-slate-500">{e.time}</span>
+              <span className="mr-2 font-mono text-neutral-400">{e.time}</span>
               {e.text}
             </div>
           ))}
@@ -203,14 +203,14 @@ export default function Home() {
 
   const supplierCard = (
     <Card title={supplier?.label ?? "Supplier A"} subtitle="counterparty" accent="emerald">
-      <div className="rounded-lg bg-slate-950/50 p-3 ring-1 ring-slate-800">
+      <div className="rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200">
         <div className="flex items-center gap-2 text-sm">
           <span className="text-lg">{supplier && !supplier.canSeeMandate ? "🔒" : "⚠️"}</span>
-          <span className={supplier && !supplier.canSeeMandate ? "text-emerald-300" : "text-amber-300"}>
+          <span className={`font-medium ${supplier && !supplier.canSeeMandate ? "text-emerald-700" : "text-amber-700"}`}>
             {supplier && !supplier.canSeeMandate ? "Mandate & budget: NOT VISIBLE" : "Mandate visible (unexpected)"}
           </span>
         </div>
-        <p className="mt-1 text-[11px] text-slate-500">
+        <p className="mt-1 text-[11px] text-neutral-500">
           The cap and remaining budget never reach this node — so you can&apos;t price up to it.
         </p>
       </div>
@@ -219,15 +219,15 @@ export default function Home() {
 
       <div className="mt-auto">
         {supplier?.purchaseOrder ? (
-          <div className="rounded-xl bg-emerald-500/10 p-4 text-center ring-1 ring-emerald-500/40">
-            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-300">✓ Authorized + Funded</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-emerald-200">
+          <div className="rounded-xl bg-emerald-50 p-4 text-center ring-1 ring-emerald-200">
+            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">✓ Authorized + Funded</div>
+            <div className="mt-1 font-mono text-2xl font-bold text-emerald-700">
               ${money(supplier.purchaseOrder.amount)}
             </div>
-            <div className="mt-1 text-[11px] text-emerald-400/70">cap &amp; remaining budget: hidden</div>
+            <div className="mt-1 text-[11px] text-emerald-600/80">cap &amp; remaining budget: hidden</div>
           </div>
         ) : (
-          <div className="rounded-xl bg-slate-950/40 p-4 text-center text-sm text-slate-600 ring-1 ring-slate-800">
+          <div className="rounded-xl bg-neutral-50 p-4 text-center text-sm text-neutral-400 ring-1 ring-neutral-200">
             Awaiting award…
           </div>
         )}
@@ -242,28 +242,28 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-full w-full bg-[radial-gradient(60%_50%_at_50%_0%,#0f1b2d_0%,#020617_60%)] text-slate-200">
+    <div className="min-h-screen w-full bg-[#f5f5f3] text-neutral-900 [background-image:radial-gradient(circle,rgba(0,0,0,0.035)_1px,transparent_1px)] [background-size:26px_26px]">
       <div className="mx-auto max-w-7xl px-6 py-8">
         {/* Header */}
         <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <Link href="/" className="mb-1 inline-block text-xs text-slate-500 transition hover:text-slate-300">
+            <Link href="/" className="mb-1 inline-block text-xs text-neutral-500 transition hover:text-neutral-900">
               ← Back to home
             </Link>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-white">MandateRail</h1>
-              <span className="rounded-md bg-violet-500/15 px-2 py-0.5 text-[11px] font-semibold text-violet-300 ring-1 ring-violet-600/40">
+              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">MandateRail</h1>
+              <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">
                 on Canton
               </span>
             </div>
-            <p className="mt-1 text-sm text-slate-400">
+            <p className="mt-1 text-sm text-neutral-500">
               Confidential, ledger-enforced spend mandates for agentic procurement.{" "}
-              <span className="text-slate-300">Trust the ledger, not the model.</span>
+              <span className="text-neutral-700">Trust the ledger, not the model.</span>
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-400" : "bg-red-500"}`} />
-            <span className={connected ? "text-emerald-300" : "text-red-300"}>
+            <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-500" : "bg-red-500"}`} />
+            <span className={connected ? "text-emerald-600" : "text-red-600"}>
               {connected ? "ledger live" : "disconnected — is `daml start` running?"}
             </span>
           </div>
@@ -272,10 +272,10 @@ export default function Home() {
         {session === null ? (
           /* Login screen — Canton identity, no browser wallet */
           <div className="grid min-h-[58vh] place-items-center">
-            <div className="w-full max-w-md rounded-2xl bg-slate-900/70 p-6 ring-1 ring-slate-800">
-              <h2 className="text-lg font-semibold text-white">Sign in</h2>
-              <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                Canton has no browser wallet. Choose the <span className="text-slate-300">party</span> (identity) to act
+            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-neutral-900">Sign in</h2>
+              <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                Canton has no browser wallet. Choose the <span className="text-neutral-700">party</span> (identity) to act
                 as — auth is a per-party JWT minted server-side (enterprise SSO/OIDC in production).
               </p>
               <div className="mt-4 space-y-2">
@@ -289,16 +289,16 @@ export default function Home() {
                   <button
                     key={key}
                     onClick={() => setSession(key)}
-                    className="flex w-full items-center justify-between rounded-lg bg-slate-800 px-4 py-3 text-left transition hover:bg-slate-700"
+                    className="flex w-full items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-neutral-900 hover:bg-white"
                   >
-                    <span className="text-sm font-semibold text-slate-100">{title}</span>
-                    <span className="text-[11px] text-slate-400">{sub}</span>
+                    <span className="text-sm font-semibold text-neutral-900">{title}</span>
+                    <span className="text-[11px] text-neutral-500">{sub}</span>
                   </button>
                 ))}
               </div>
               <button
                 onClick={() => setSession("cockpit")}
-                className="mt-3 w-full rounded-lg border border-slate-700 px-4 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-800"
+                className="mt-3 w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50"
               >
                 Open cockpit — view all parties (demo)
               </button>
@@ -307,14 +307,14 @@ export default function Home() {
         ) : (
           <>
             {/* Session bar: switch identity or log out */}
-            <div className="mb-5 flex flex-wrap items-center gap-1 rounded-xl bg-slate-900/70 p-1.5 ring-1 ring-slate-800">
-              <span className="px-2 text-xs font-medium text-slate-500">Logged in as</span>
+            <div className="mb-5 flex flex-wrap items-center gap-1 rounded-xl border border-neutral-200 bg-white p-1.5 shadow-sm">
+              <span className="px-2 text-xs font-medium text-neutral-500">Logged in as</span>
               {ROLES.map((r) => (
                 <button
                   key={r.key}
                   onClick={() => setSession(r.key)}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    session === r.key ? "bg-slate-700 text-white shadow" : "text-slate-400 hover:text-slate-200"
+                    session === r.key ? "bg-neutral-900 text-white shadow" : "text-neutral-500 hover:text-neutral-900"
                   }`}
                 >
                   {r.label}
@@ -322,7 +322,7 @@ export default function Home() {
               ))}
               <button
                 onClick={() => setSession(null)}
-                className="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-500/10"
+                className="ml-auto rounded-lg px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50"
               >
                 Log out
               </button>
@@ -336,8 +336,8 @@ export default function Home() {
               </div>
             ) : (
               <div className="mx-auto max-w-xl">
-                <div className="mb-3 rounded-lg border border-slate-800 bg-slate-900/50 px-4 py-2.5 text-xs text-slate-400">
-                  <span className="font-semibold text-slate-200">
+                <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs text-neutral-500">
+                  <span className="font-semibold text-neutral-900">
                     🔑 Session: {ROLES.find((r) => r.key === session)?.label}
                   </span>
                   {" — "}
@@ -349,7 +349,7 @@ export default function Home() {
           </>
         )}
 
-        <footer className="mt-8 text-center text-[11px] text-slate-600">
+        <footer className="mt-8 text-center text-[11px] text-neutral-400">
           Bounded. Private. Atomic. · Daml + Canton sandbox · MandateRail
         </footer>
       </div>
