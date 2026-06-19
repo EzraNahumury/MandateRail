@@ -68,18 +68,22 @@ MandateRail is the deliberate **inversion** of the "AI wrapper" trope the track 
 
 ## Screenshots & Demo
 
-> 📹 **3-minute video pitch + demo:** _TODO before submission — link here_
-> 🖥️ **Live product:** _TODO before submission — deployed URL here_
+> 📹 **3-minute video pitch + demo:** _add link before submission_
+> 🖥️ **Live product:** runs locally on a Canton sandbox — see [Getting Started](#getting-started). _public deploy + URL before submission_
 
-| The three-panel cockpit | The "ledger says no" money-shot |
-|---|---|
-| ![Treasurer · Agent · Supplier panels](docs/diagrams/three-panels.png) | ![Over-cap purchase rejected at the ledger](docs/diagrams/rejection.png) |
+**Landing**
 
-| Live consumption gauge + instant revoke | Supplier sees only `Authorized + Funded` |
-|---|---|
-| ![Treasurer console](docs/diagrams/treasurer-console.png) | ![Supplier proof slice](docs/diagrams/supplier-view.png) |
+![MandateRail landing](docs/diagrams/landing.png)
 
-*(Place exported PNG/GIF assets in `docs/diagrams/`. An animated GIF of the over-cap rejection and the instant-revoke beat is the single highest-value asset for skim-reading judges — capture it from the live demo.)*
+**The cockpit — Treasurer · Buyer Agent · Supplier, live on a Canton sandbox**
+
+![Three-panel cockpit with live ledger data](docs/diagrams/demo-cockpit.png)
+
+The Supplier panel proves the privacy claim *live*: **Mandate & budget: NOT VISIBLE** — the cap never reaches the supplier's node. In the Buyer Agent panel, **Commit cheapest** settles atomically while **Try over-cap** / **Try off-list** are rejected by the ledger (a real Daml precondition failure, not app code).
+
+**Sign in — choose a Canton party (no browser wallet)**
+
+![Sign in screen](docs/diagrams/demo-signin.png)
 
 ---
 
@@ -873,18 +877,19 @@ We are explicit about what is real vs. mocked — this credibility is itself a j
 
 ## Submission Artifacts
 
-- **Public repository:** *(this repo)*
-- **3-minute video pitch + demo:** *(link — see `docs/`)*
-- **Live product:** *(deployed URL)*
-- **Presentation deck:** `docs/deck.pdf`
+- ✅ **Public repository:** https://github.com/EzraNahumury/MandateRail
+- ⏳ **3-minute video pitch + demo:** _add link before submission_
+- ⏳ **Live product:** runs locally (Canton sandbox) — _public deploy + URL before submission_
+- ⏳ **Presentation deck:** _add `docs/deck.pdf` before submission_
 
-> ⚠️ **Pre-submission checklist (TODO):**
+> ⚠️ **Pre-submission checklist:**
+> - [x] Apache 2.0 `LICENSE`
+> - [x] Screenshots into `docs/diagrams/` (landing, cockpit, sign-in)
+> - [x] `daml test` passes (8/8) and the app runs on a fresh `daml start` + `npm run dev`
 > - [ ] Record + link the 3-minute video (lead with the two money-shots)
 > - [ ] Deploy the UI + a hosted sandbox and paste the live URL
-> - [ ] Capture screenshots/GIF into `docs/diagrams/`
-> - [ ] Add the `LICENSE` file (Apache 2.0)
+> - [ ] Add the presentation deck
 > - [ ] Fill in the team names + contact below
-> - [ ] Confirm `daml test` passes and `pnpm demo` runs clean on a fresh clone
 
 ---
 
