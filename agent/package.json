@@ -1,0 +1,22 @@
+{
+  "name": "@mandaterail/agent",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Thin, scripted buyer agent for MandateRail. All control lives in the Daml ledger; this agent has zero enforcement authority.",
+  "scripts": {
+    "start": "tsx src/agent.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@daml.js/mandaterail-1.0.0": "workspace:*",
+    "@daml/ledger": "2.10.4",
+    "@daml/types": "2.10.4",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.11.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -681,13 +681,28 @@ Open the Treasurer, Supplier, and Agent panels (separate tabs / routes), each sc
 
 ### 4. Run the scripted agent
 
+With `daml start` running (step 1) and bindings generated (step 2), install once and run the agent from the repo root:
+
 ```bash
-cd agent
 pnpm install
-pnpm start          # connects to the ledger, runs the buy loop
+pnpm --filter @mandaterail/agent start
 ```
 
-> A `Makefile` / `pnpm demo` target wires all of the above into one command for the live demo.
+The agent connects via the JSON Ledger API, discovers the `BuyerAgent` party, reads the mandate + sealed quotes, and runs three beats:
+
+```text
+[1] Awarding the cheapest compliant quote ...
+    ✓ COMMIT OK — mandate debited + PO issued + cash settled, atomically.
+    remaining budget now: 41000.0
+[2] Money-shot #1a — trying an OVER-CAP purchase ...
+    ✓ REJECTED BY THE LEDGER (not app code): ... "amount exceeds per-tx cap"
+[3] Money-shot #1b — trying an OFF-ALLOW-LIST supplier ...
+    ✓ REJECTED BY THE LEDGER (not app code): ... "supplier not on allow-list"
+```
+
+The rejections are raw Daml `AssertionFailed` errors from the `SpendMandate.Commit` choice — proof the guardrail is the ledger, not the agent.
+
+> **Note:** the agent reads `LEDGER_ID=sandbox` (the `daml start` default) and a dev `LEDGER_SECRET`. See `agent/.env.example`. **Re-run `pnpm codegen` after any change to the Daml model** — the bindings embed the package id, which changes when the Daml source changes.
 
 ---
 

@@ -47,4 +47,12 @@ setup = do
   _qC <- submit supC do
     createCmd RfqQuote with supplier = supC, agent = agent, category = "cloud-compute", price = 9200.0
 
+  -- Demo quotes for the negative paths (money-shot #1):
+  --  * SupplierD is NOT on the allow-list  -> Commit must be rejected
+  --  * SupplierC's 12k quote is OVER the per-tx cap -> Commit must be rejected
+  _qOffList <- submit supD do
+    createCmd RfqQuote with supplier = supD, agent = agent, category = "cloud-compute", price = 9000.0
+  _qOverCap <- submit supC do
+    createCmd RfqQuote with supplier = supC, agent = agent, category = "cloud-compute", price = 12000.0
+
   pure ()

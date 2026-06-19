@@ -3,6 +3,13 @@
 *.dar
 dist/
 
+# Daml start runtime logs / artifacts
+log/
+*.log
+navigator.log
+.daml-start/
+.canton/
+
 # Generated TypeScript bindings
 daml.js/
 
