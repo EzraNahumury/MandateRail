@@ -129,8 +129,8 @@ export default function Landing() {
             <button className="grid h-9 w-9 place-items-center rounded-full border border-neutral-200 bg-white text-neutral-600 transition hover:text-neutral-900" aria-label="Search">
               <IconSearch />
             </button>
-            <Link href={project.demoHref} className="hidden rounded-full border border-neutral-900 px-4 py-1.5 text-sm font-medium transition hover:bg-neutral-900 hover:text-white sm:inline-block">
-              Demo
+            <Link href={project.demoHref} className="hidden rounded-full bg-neutral-900 px-5 py-1.5 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-neutral-800 sm:inline-block">
+              Login
             </Link>
             <button onClick={() => setMenuOpen((o) => !o)} className="grid h-9 w-9 place-items-center rounded-full bg-neutral-900 text-white md:hidden" aria-label="Menu">
               <IconMenu />
@@ -143,7 +143,7 @@ export default function Landing() {
               {nav.map((n) => (
                 <a key={n.label} href={n.href} onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2 text-sm text-neutral-700 transition hover:bg-white">{n.label}</a>
               ))}
-              <Link href={project.demoHref} className="rounded-lg bg-neutral-900 px-3 py-2 text-center text-sm font-medium text-white">Launch the demo</Link>
+              <Link href={project.demoHref} className="rounded-lg bg-neutral-900 px-3 py-2 text-center text-sm font-semibold text-white">Login</Link>
             </div>
           </div>
         )}
