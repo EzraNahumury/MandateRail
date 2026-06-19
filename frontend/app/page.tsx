@@ -17,6 +17,8 @@ import {
   howItWorks,
 } from "./components/landing/content";
 import { Reveal } from "./components/landing/Reveal";
+import ScrollFloat from "./components/reactbits/ScrollFloat";
+import GlareHover from "./components/reactbits/GlareHover";
 
 /* ---------- tiny inline icons ---------- */
 const IconSearch = () => (
@@ -40,6 +42,8 @@ const IconLock = () => (
     <rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
   </svg>
 );
+
+const HEADING = "text-2xl font-bold tracking-tight text-neutral-900 sm:text-3xl";
 
 /* highlight the word "ledger" with a brand marker */
 function withAccent(line: string): ReactNode {
@@ -82,7 +86,17 @@ function Stamp() {
 
 function HeroCard({ c }: { c: (typeof heroCards)[number] }) {
   return (
-    <div className="w-56 overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl shadow-neutral-900/10 transition-transform duration-500 hover:scale-[1.03]">
+    <GlareHover
+      width="224px"
+      background="#ffffff"
+      borderColor="#e5e5e5"
+      borderRadius="1rem"
+      glareColor="#ffffff"
+      glareOpacity={0.4}
+      glareSize={320}
+      transitionDuration={750}
+      className="shadow-2xl shadow-neutral-900/10 transition-transform duration-500 hover:scale-[1.03]"
+    >
       <div className="relative h-32">
         <Image src={c.img} alt="" fill sizes="224px" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/35" />
@@ -97,7 +111,7 @@ function HeroCard({ c }: { c: (typeof heroCards)[number] }) {
           <span className="grid h-6 w-6 place-items-center rounded-full bg-neutral-100 text-neutral-500"><IconLock /></span>
         </div>
       </div>
-    </div>
+    </GlareHover>
   );
 }
 
@@ -150,7 +164,6 @@ export default function Landing() {
       <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* ---------------- Hero ---------------- */}
         <section id="product" className="relative grid items-center gap-10 py-12 lg:grid-cols-2 lg:py-20">
-          {/* animated background blobs */}
           <div aria-hidden className="pointer-events-none absolute -left-24 top-0 h-72 w-72 rounded-full bg-lime-200/50 blur-3xl animate-blob" />
           <div aria-hidden className="pointer-events-none absolute right-10 top-32 h-80 w-80 rounded-full bg-indigo-200/40 blur-3xl animate-blob" style={{ animationDelay: "-7s" }} />
 
@@ -182,7 +195,7 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* hero visual — floating, rotated, real Canton imagery */}
+          {/* hero visual — floating, rotated, real Canton imagery + glare */}
           <div className="relative h-[420px] w-full sm:h-[470px]">
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 500 470" fill="none" aria-hidden>
               <ellipse cx="270" cy="245" rx="210" ry="155" stroke="#d6d3d1" strokeWidth="1" transform="rotate(-18 270 245)" />
@@ -221,9 +234,9 @@ export default function Landing() {
         </section>
 
         {/* ---------------- Use Cases pills ---------------- */}
-        <Reveal>
-          <section id="use-cases" className="py-14">
-            <h2 className="mb-6 text-center text-2xl font-bold tracking-tight sm:text-3xl">{useCases.title}</h2>
+        <section id="use-cases" className="py-14">
+          <ScrollFloat containerClassName="mb-6 text-center" textClassName={HEADING}>{useCases.title}</ScrollFloat>
+          <Reveal>
             <div className="space-y-3">
               {useCases.rows.map((row, ri) => (
                 <div key={ri} className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -238,22 +251,33 @@ export default function Landing() {
                 All use cases <IconArrow />
               </Link>
             </div>
-          </section>
-        </Reveal>
+          </Reveal>
+        </section>
 
         {/* ---------------- Featured ---------------- */}
-        <Reveal>
-          <section className="py-8">
-            <div className="mb-6 flex items-end justify-between">
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{featured.title}</h2>
-              <div className="flex items-center gap-2">
-                <button onClick={() => scrollFeat(-1)} className="grid h-9 w-9 place-items-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-neutral-900" aria-label="Previous"><IconArrow dir={-1} /></button>
-                <button onClick={() => scrollFeat(1)} className="grid h-9 w-9 place-items-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-neutral-900" aria-label="Next"><IconArrow /></button>
-              </div>
+        <section className="py-8">
+          <div className="mb-6 flex items-end justify-between">
+            <ScrollFloat textClassName={HEADING}>{featured.title}</ScrollFloat>
+            <div className="flex items-center gap-2">
+              <button onClick={() => scrollFeat(-1)} className="grid h-9 w-9 place-items-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-neutral-900" aria-label="Previous"><IconArrow dir={-1} /></button>
+              <button onClick={() => scrollFeat(1)} className="grid h-9 w-9 place-items-center rounded-full border border-neutral-300 bg-white text-neutral-600 transition hover:border-neutral-900" aria-label="Next"><IconArrow /></button>
             </div>
-            <div ref={featRef} className="flex snap-x gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          </div>
+          <Reveal>
+            <div ref={featRef} className="flex snap-x items-stretch gap-5 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {featured.items.map((f) => (
-                <article key={f.title} className="group w-[280px] flex-shrink-0 snap-start overflow-hidden rounded-2xl border border-neutral-900/80 bg-white transition duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-neutral-900/15">
+                <GlareHover
+                  key={f.title}
+                  width="280px"
+                  background="#ffffff"
+                  borderColor="#111111"
+                  borderRadius="1rem"
+                  glareColor="#ffffff"
+                  glareOpacity={0.35}
+                  glareSize={320}
+                  transitionDuration={800}
+                  className="group flex-shrink-0 snap-start transition duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-neutral-900/15"
+                >
                   <div className="relative h-44 overflow-hidden">
                     <Image src={f.img} alt="" fill sizes="280px" className="object-cover transition duration-700 group-hover:scale-110" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/5 to-transparent" />
@@ -263,23 +287,23 @@ export default function Landing() {
                     <h3 className="text-base font-semibold tracking-tight">{f.title}</h3>
                     <p className="text-sm leading-relaxed text-neutral-600">{f.subtitle}</p>
                   </div>
-                </article>
+                </GlareHover>
               ))}
             </div>
-          </section>
-        </Reveal>
+          </Reveal>
+        </section>
 
         {/* ---------------- Key Workflows ---------------- */}
-        <Reveal>
-          <section className="py-14">
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{workflows.title}</h2>
-              <div className="flex gap-1 rounded-full border border-neutral-300 bg-white p-1">
-                {workflows.filters.map((f) => (
-                  <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-semibold transition ${filter === f ? "bg-neutral-900 text-white" : "text-neutral-500 hover:text-neutral-900"}`}>{f}</button>
-                ))}
-              </div>
+        <section className="py-14">
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+            <ScrollFloat textClassName={HEADING}>{workflows.title}</ScrollFloat>
+            <div className="flex gap-1 rounded-full border border-neutral-300 bg-white p-1">
+              {workflows.filters.map((f) => (
+                <button key={f} onClick={() => setFilter(f)} className={`rounded-full px-3 py-1 text-xs font-semibold transition ${filter === f ? "bg-neutral-900 text-white" : "text-neutral-500 hover:text-neutral-900"}`}>{f}</button>
+              ))}
             </div>
+          </div>
+          <Reveal>
             <div className="grid gap-3 md:grid-cols-2">
               {workflows.items.map((w, i) => (
                 <div key={w.name} className="flex items-center gap-4 rounded-xl border border-neutral-200 bg-white px-4 py-3 transition hover:-translate-y-0.5 hover:border-neutral-400 hover:shadow-sm">
@@ -293,13 +317,13 @@ export default function Landing() {
                 </div>
               ))}
             </div>
-          </section>
-        </Reveal>
+          </Reveal>
+        </section>
 
         {/* ---------------- Explore tabs ---------------- */}
-        <Reveal>
-          <section id="explore" className="py-8">
-            <h2 className="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">{explore.title}</h2>
+        <section id="explore" className="py-8">
+          <ScrollFloat containerClassName="mb-6" textClassName={HEADING}>{explore.title}</ScrollFloat>
+          <Reveal>
             <div className="flex flex-wrap gap-2">
               {explore.tabs.map((t) => (
                 <button key={t.key} onClick={() => setTab(t.key)} className={`rounded-full border px-4 py-2 text-sm font-medium transition ${tab === t.key ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white text-neutral-600 hover:border-neutral-900"}`}>{t.key}</button>
@@ -317,55 +341,79 @@ export default function Landing() {
                 </div>
               </div>
             </div>
-          </section>
-        </Reveal>
+          </Reveal>
+        </section>
 
         {/* ---------------- Problem / Solution / Why ---------------- */}
         <section className="py-14">
-          <div className="grid gap-5 md:grid-cols-3">
-            {problemSolution.map((c, i) => (
-              <Reveal key={c.tag} delay={i * 90}>
-                <div className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-white p-6 transition hover:-translate-y-1 hover:shadow-lg">
-                  <span className="mb-3 inline-flex w-fit rounded-full bg-neutral-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">{c.tag}</span>
-                  <h3 className="text-lg font-semibold tracking-tight">{c.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-neutral-600">{c.body}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <Reveal>
+            <div className="grid gap-5 md:grid-cols-3">
+              {problemSolution.map((c) => (
+                <GlareHover
+                  key={c.tag}
+                  background="#ffffff"
+                  borderColor="#e5e5e5"
+                  borderRadius="1rem"
+                  glareColor="#000000"
+                  glareOpacity={0.05}
+                  glareSize={300}
+                  transitionDuration={750}
+                  className="transition hover:-translate-y-1 hover:shadow-lg"
+                >
+                  <div className="flex h-full flex-col p-6">
+                    <span className="mb-3 inline-flex w-fit rounded-full bg-neutral-900 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">{c.tag}</span>
+                    <h3 className="text-lg font-semibold tracking-tight">{c.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-neutral-600">{c.body}</p>
+                  </div>
+                </GlareHover>
+              ))}
+            </div>
+          </Reveal>
         </section>
 
         {/* ---------------- How it works ---------------- */}
         <section className="py-8">
-          <Reveal><h2 className="mb-6 text-2xl font-bold tracking-tight sm:text-3xl">{howItWorks.title}</h2></Reveal>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {howItWorks.steps.map((s, i) => (
-              <Reveal key={s.n} delay={i * 90}>
-                <div className="h-full rounded-2xl border border-neutral-200 bg-white p-5 transition hover:border-neutral-900">
-                  <div className="font-mono text-3xl font-bold text-neutral-200">{s.n}</div>
-                  <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
-                  <p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{s.body}</p>
-                </div>
-              </Reveal>
-            ))}
-          </div>
+          <ScrollFloat containerClassName="mb-6" textClassName={HEADING}>{howItWorks.title}</ScrollFloat>
+          <Reveal>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {howItWorks.steps.map((s) => (
+                <GlareHover
+                  key={s.n}
+                  background="#ffffff"
+                  borderColor="#e5e5e5"
+                  borderRadius="1rem"
+                  glareColor="#000000"
+                  glareOpacity={0.05}
+                  glareSize={300}
+                  transitionDuration={750}
+                  className="transition hover:-translate-y-1 hover:border-neutral-900"
+                >
+                  <div className="h-full p-5">
+                    <div className="font-mono text-3xl font-bold text-neutral-200">{s.n}</div>
+                    <h3 className="mt-2 text-base font-semibold">{s.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{s.body}</p>
+                  </div>
+                </GlareHover>
+              ))}
+            </div>
+          </Reveal>
         </section>
 
         {/* ---------------- CTA band ---------------- */}
-        <Reveal>
-          <section className="py-14">
-            <div className="relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl bg-neutral-900 px-6 py-16 text-center text-white sm:px-12">
-              <div aria-hidden className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-lime-400/20 blur-3xl animate-blob" />
-              <div aria-hidden className="pointer-events-none absolute -bottom-10 right-0 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl animate-blob" style={{ animationDelay: "-9s" }} />
-              <h2 className="relative max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">Bounded. Private. Atomic.</h2>
-              <p className="relative max-w-xl text-sm text-neutral-300">{project.oneLiner}</p>
-              <div className="relative flex flex-wrap justify-center gap-3">
-                <Link href={project.demoHref} className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:-translate-y-0.5">Launch the demo</Link>
-                <a href={project.repo} className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">View on GitHub</a>
-              </div>
+        <section className="py-14">
+          <div className="relative flex flex-col items-center gap-5 overflow-hidden rounded-3xl bg-neutral-900 px-6 py-16 text-center text-white sm:px-12">
+            <div aria-hidden className="pointer-events-none absolute -left-10 -top-10 h-48 w-48 rounded-full bg-lime-400/20 blur-3xl animate-blob" />
+            <div aria-hidden className="pointer-events-none absolute -bottom-10 right-0 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl animate-blob" style={{ animationDelay: "-9s" }} />
+            <ScrollFloat containerClassName="relative text-center" textClassName="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Bounded. Private. Atomic.
+            </ScrollFloat>
+            <p className="relative max-w-xl text-sm text-neutral-300">{project.oneLiner}</p>
+            <div className="relative flex flex-wrap justify-center gap-3">
+              <Link href={project.demoHref} className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-neutral-900 transition hover:-translate-y-0.5">Launch the demo</Link>
+              <a href={project.repo} className="rounded-full border border-white/30 px-6 py-3 text-sm font-semibold text-white transition hover:bg-white/10">View on GitHub</a>
             </div>
-          </section>
-        </Reveal>
+          </div>
+        </section>
       </main>
 
       {/* ---------------- Footer ---------------- */}
