@@ -40,7 +40,7 @@ export const heroCards = [
     meta: "Per-tx cap $10,000 · 3 approved suppliers",
     amount: "$50,000",
     badge: "ENFORCED",
-    tone: "indigo",
+    img: "/canton3.png",
   },
   {
     kind: "Sealed Quote",
@@ -48,7 +48,7 @@ export const heroCards = [
     meta: "Rivals never see this price",
     amount: "$9,000",
     badge: "PRIVATE",
-    tone: "slate",
+    img: "/canton.png",
   },
   {
     kind: "Purchase Order",
@@ -56,7 +56,7 @@ export const heroCards = [
     meta: "Cap & remaining budget: hidden",
     amount: "$9,000",
     badge: "ATOMIC",
-    tone: "emerald",
+    img: "/canton2.png",
   },
 ] as const;
 
@@ -84,25 +84,25 @@ export const featured = {
       title: "Ledger-Enforced Mandate",
       subtitle: "Caps, expiry & allow-list as Daml choice preconditions — not app code, not a prompt.",
       status: "Enforced",
-      tone: "indigo",
+      img: "/canton.png",
     },
     {
       title: "Sealed-Bid Auction",
       subtitle: "Each supplier's quote is visible only to it and the agent. No price-to-cap, no collusion.",
       status: "Private",
-      tone: "violet",
+      img: "/canton3.png",
     },
     {
       title: "Atomic DvP Commit",
       subtitle: "Debit mandate + binding PO + tokenized cash settle in one transaction, or none at all.",
       status: "Atomic",
-      tone: "emerald",
+      img: "/canton2.png",
     },
     {
       title: "Instant Revoke",
       subtitle: "The treasurer archives the mandate and the agent's next action fails immediately.",
       status: "Bounded",
-      tone: "slate",
+      img: "/canton.png",
     },
   ],
 };
