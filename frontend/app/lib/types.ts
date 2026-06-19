@@ -45,8 +45,19 @@ export interface AuditPayload {
   supplierApproved: boolean;
   categoryMatch: boolean;
   notExpired: boolean;
+  humanApproved: boolean;
   committedAt: string;
   agentNote: string;
+}
+
+export interface ApprovalPayload {
+  treasurer: string;
+  agent: string;
+  regulator: string;
+  supplier: string;
+  amount: string;
+  category: string;
+  reason: string;
 }
 
 export interface AuditEntry {
@@ -55,6 +66,7 @@ export interface AuditEntry {
   category: string;
   committedAt: string;
   agentNote: string;
+  humanApproved: boolean;
   checks: { label: string; pass: boolean }[];
 }
 
@@ -79,6 +91,7 @@ export interface StateSnapshot {
       expiry: string;
     } | null;
     charter: { ceilingPerTxCap: string; ceilingBudget: string } | null;
+    pendingApprovals: { supplier: string; amount: string; category: string; reason: string }[];
   };
   agent: {
     hasMandate: boolean;
@@ -107,6 +120,22 @@ export type CommitMode = "cheapest" | "overcap" | "offlist";
 export interface CommitResponse {
   ok: boolean;
   mode?: string;
+  supplier?: string;
+  amount?: string;
+  rejected?: boolean;
+  reason?: string;
+  error?: string;
+}
+
+export interface EscalateResponse {
+  ok: boolean;
+  supplier?: string;
+  amount?: string;
+  error?: string;
+}
+
+export interface ApprovalActionResponse {
+  ok: boolean;
   supplier?: string;
   amount?: string;
   rejected?: boolean;

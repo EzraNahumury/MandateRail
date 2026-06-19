@@ -23,6 +23,7 @@ template AuditRecord
     supplierApproved : Bool
     categoryMatch    : Bool
     notExpired       : Bool
+    humanApproved    : Bool
     committedAt      : Time
     agentNote        : Text
   where

@@ -1,0 +1,40 @@
+module MandateRail.Approval where
+
+import MandateRail.Cash
+import MandateRail.Rfq
+import MandateRail.Mandate
+
+-- | Human-in-the-loop escalation. When the agent has a legitimate over-cap need,
+-- it CANNOT commit (the ledger blocks it) — instead it raises an ApprovalRequest
+-- that only the treasurer can act on. The agent is powerless; the human decides.
+template ApprovalRequest
+  with
+    treasurer : Party
+    agent     : Party
+    regulator : Party
+    supplier  : Party
+    amount    : Decimal
+    category  : Text
+    reason    : Text
+  where
+    signatory agent
+    observer treasurer, regulator
+
+    -- Treasurer approves -> a single over-cap buy goes through via CommitApproved
+    -- (audited as human-approved). The treasurer supplies the live contract ids.
+    choice Approve : CommitResult
+      with
+        mandateCid : ContractId SpendMandate
+        quoteCid   : ContractId RfqQuote
+        cashCid    : ContractId Iou
+      controller treasurer
+      do
+        exercise mandateCid CommitApproved with
+          quoteCid
+          amount
+          cashCid
+          agentNote = "Human-approved over-cap purchase: " <> reason
+
+    choice Reject : ()
+      controller treasurer
+      do pure ()

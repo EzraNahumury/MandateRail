@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { StateSnapshot, CommitMode } from "@/app/lib/types";
-import { fetchState, postCommit, postIssue, postRevoke } from "@/app/lib/api";
+import { fetchState, postCommit, postIssue, postRevoke, postEscalate, postApprove, postReject } from "@/app/lib/api";
 import { Button, Card, Chip, MoneyGauge, money, Stat } from "@/app/components/ui";
 
 type LogKind = "ok" | "reject" | "error" | "info";
@@ -118,8 +118,39 @@ export default function Home() {
       else addLog("error", r.error ?? "commit error");
     });
 
+  const onEscalate = () =>
+    run(async () => {
+      const r = await postEscalate();
+      addLog(
+        r.ok ? "info" : "error",
+        r.ok
+          ? `Agent ESCALATED $${money(r.amount)} to ${r.supplier} — over-cap, awaiting treasurer approval.`
+          : `Escalate failed: ${r.error}`,
+      );
+    });
+
+  const onApprove = () =>
+    run(async () => {
+      const r = await postApprove();
+      if (r.ok)
+        addLog("ok", `TREASURER APPROVED — $${money(r.amount)} to ${r.supplier} committed over-cap, audited human-approved.`);
+      else if (r.rejected)
+        addLog("reject", `REJECTED BY THE LEDGER — "${r.reason}".`);
+      else addLog("error", r.error ?? "approve error");
+    });
+
+  const onReject = () =>
+    run(async () => {
+      const r = await postReject();
+      addLog(
+        r.ok ? "info" : "error",
+        r.ok ? `TREASURER REJECTED the escalation — nothing committed.` : `Reject failed: ${r.error}`,
+      );
+    });
+
   const mandate = snap?.treasurer.mandate ?? null;
   const charter = snap?.treasurer.charter ?? null;
+  const pendingApprovals = snap?.treasurer.pendingApprovals ?? [];
   const supplier = snap?.supplier;
   const agent = snap?.agent;
 
@@ -160,6 +191,36 @@ export default function Home() {
       ) : (
         <p className="text-sm text-neutral-500">No active mandate. Issue one to begin.</p>
       )}
+
+      {pendingApprovals.length > 0 && (
+        <div className="space-y-2 rounded-lg bg-amber-50 p-3 ring-1 ring-amber-200">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+            </span>
+            {pendingApprovals.length} escalation{pendingApprovals.length > 1 ? "s" : ""} awaiting you
+          </div>
+          {pendingApprovals.map((p, i) => (
+            <div key={i} className="rounded-md bg-white p-2.5 ring-1 ring-amber-100">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-neutral-800">{p.supplier}</span>
+                <span className="font-mono font-semibold text-amber-700">${money(p.amount)}</span>
+              </div>
+              <p className="mt-1 text-[11px] italic leading-snug text-neutral-500">&ldquo;{p.reason}&rdquo;</p>
+              <div className="mt-2 flex gap-2">
+                <Button variant="primary" onClick={onApprove} disabled={busy}>
+                  Approve over-cap
+                </Button>
+                <Button variant="ghost" onClick={onReject} disabled={busy}>
+                  Reject
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="mt-auto flex gap-2 pt-2">
         <Button variant="ghost" onClick={onIssue} disabled={busy}>
           {mandate ? "Reset mandate" : "Issue mandate"}
@@ -205,6 +266,14 @@ export default function Home() {
           Try off-list
         </Button>
       </div>
+
+      <button
+        onClick={onEscalate}
+        disabled={busy || !mandate}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:border-amber-500 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        ⤴ Escalate over-cap → request human approval
+      </button>
 
       <div className="flex-1">
         <div className="mb-1.5 text-xs text-neutral-500">Ledger activity</div>
@@ -300,7 +369,14 @@ export default function Home() {
             {reg.auditTrail.map((a, i) => (
               <div key={i} className="rounded-lg border border-neutral-200 bg-white p-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold text-neutral-900">{a.supplier}</span>
+                  <span className="flex items-center gap-1.5 font-semibold text-neutral-900">
+                    {a.supplier}
+                    {a.humanApproved && (
+                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">
+                        ⤴ human-approved
+                      </span>
+                    )}
+                  </span>
                   <span className="font-mono text-neutral-900">${money(a.amount)}</span>
                 </div>
                 <div className="mt-1.5 flex flex-wrap gap-1">

@@ -6,6 +6,7 @@ import type {
   POPayload,
   AuditPayload,
   AuditEntry,
+  ApprovalPayload,
   CharterPayload,
   StateSnapshot,
   QuoteKind,
@@ -25,6 +26,7 @@ export async function GET() {
       category: a.category,
       committedAt: a.committedAt,
       agentNote: a.agentNote,
+      humanApproved: a.humanApproved,
       checks: [
         { label: "per-tx cap", pass: a.underPerTxCap },
         { label: "budget", pass: a.underBudget },
@@ -42,6 +44,9 @@ export async function GET() {
     const mandate = tMandates[0]?.payload ?? null;
     const tCharters = await query<CharterPayload>(treasurerTok, [TID.charter]);
     const charter = tCharters[0]?.payload ?? null;
+    // Escalations awaiting the treasurer's decision (over-cap requests the agent
+    // raised but cannot commit itself). Treasurer is an observer of each request.
+    const tApprovals = await query<ApprovalPayload>(treasurerTok, [TID.approval]);
 
     // Agent's view — runs the auction (sees all quotes), POs + audit it co-signed.
     const agentTok = tok("BuyerAgent");
@@ -86,6 +91,12 @@ export async function GET() {
         charter: charter
           ? { ceilingPerTxCap: charter.ceilingPerTxCap, ceilingBudget: charter.ceilingBudget }
           : null,
+        pendingApprovals: tApprovals.map((a) => ({
+          supplier: label(a.payload.supplier),
+          amount: a.payload.amount,
+          category: a.payload.category,
+          reason: a.payload.reason,
+        })),
       },
       agent: {
         hasMandate: !!mandate,

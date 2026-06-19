@@ -17,7 +17,7 @@ export async function POST() {
     const omni = mintToken(ids);
 
     // 1) Archive every existing app contract.
-    for (const tid of [TID.mandate, TID.quote, TID.po, TID.iou, TID.audit, TID.charter]) {
+    for (const tid of [TID.mandate, TID.quote, TID.po, TID.iou, TID.audit, TID.charter, TID.approval]) {
       const contracts = await query<unknown>(omni, [tid]);
       for (const c of contracts) {
         try {

@@ -10,6 +10,7 @@ import MandateRail.Mandate
 import MandateRail.Rfq
 import MandateRail.Audit
 import MandateRail.Charter
+import MandateRail.Approval
 
 -- A fresh world for each test.
 data World = World with
@@ -202,3 +203,35 @@ testCharterRevokeCascade = do
     exerciseCmd w.mandate RevokeByCharter
   submitMustFail w.agent do
     exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "x"
+
+-- 13. Escalation: an over-cap buy is blocked for the agent, but the treasurer can
+--     Approve an ApprovalRequest -> a single over-cap purchase goes through,
+--     audited as human-approved with underPerTxCap recorded honestly as False.
+testEscalationApprove : Script ()
+testEscalationApprove = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 12000.0 -- over the 10k cap
+  submitMustFail w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 12000.0, cashCid = w.cash, agentNote = "x"
+  req <- submit w.agent do
+    createCmd ApprovalRequest with
+      treasurer = w.treasurer, agent = w.agent, regulator = w.regulator
+      supplier = w.supA, amount = 12000.0, category = "cloud-compute", reason = "urgent capacity"
+  res <- submitMulti [w.treasurer, w.agent] [] do
+    exerciseCmd req Approve with mandateCid = w.mandate, quoteCid = q, cashCid = w.cash
+  Some a <- queryContractId w.regulator res.audit
+  a.humanApproved === True
+  a.underPerTxCap === False
+  a.amount === 12000.0
+
+-- 14. The treasurer can Reject an escalation; nothing is committed.
+testEscalationReject : Script ()
+testEscalationReject = do
+  w <- setupWorld 10000.0 50000.0
+  req <- submit w.agent do
+    createCmd ApprovalRequest with
+      treasurer = w.treasurer, agent = w.agent, regulator = w.regulator
+      supplier = w.supA, amount = 12000.0, category = "cloud-compute", reason = "x"
+  submit w.treasurer do exerciseCmd req Reject
+  Some m <- queryContractId w.treasurer w.mandate
+  m.remainingBudget === 50000.0

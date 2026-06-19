@@ -1,4 +1,10 @@
-import type { StateSnapshot, CommitMode, CommitResponse } from "./types";
+import type {
+  StateSnapshot,
+  CommitMode,
+  CommitResponse,
+  EscalateResponse,
+  ApprovalActionResponse,
+} from "./types";
 
 export async function fetchState(): Promise<StateSnapshot> {
   const r = await fetch("/api/state", { cache: "no-store" });
@@ -24,4 +30,19 @@ export async function postRevoke(): Promise<{ ok: boolean; error?: string }> {
 export async function postIssue(): Promise<{ ok: boolean; error?: string }> {
   const r = await fetch("/api/issue", { method: "POST" });
   return r.json();
+}
+
+export async function postEscalate(): Promise<EscalateResponse> {
+  const r = await fetch("/api/escalate", { method: "POST" });
+  return (await r.json()) as EscalateResponse;
+}
+
+export async function postApprove(): Promise<ApprovalActionResponse> {
+  const r = await fetch("/api/approve", { method: "POST" });
+  return (await r.json()) as ApprovalActionResponse;
+}
+
+export async function postReject(): Promise<ApprovalActionResponse> {
+  const r = await fetch("/api/reject", { method: "POST" });
+  return (await r.json()) as ApprovalActionResponse;
 }

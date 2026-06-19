@@ -89,6 +89,7 @@ template SpendMandate
           treasurer, agent, regulator
           category, supplier = quote.supplier, amount
           underPerTxCap, underBudget, supplierApproved, categoryMatch, notExpired
+          humanApproved = False
           committedAt = now
           agentNote
 
@@ -100,6 +101,52 @@ template SpendMandate
           purchaseOrder = poCid
           cash          = paidCash
           audit         = auditCid
+
+    -- Human-in-the-loop override. The agent CANNOT exceed the per-tx cap — but a
+    -- TREASURER who has reviewed an escalation can authorize a single over-cap
+    -- buy. Every other policy (budget, allow-list, category, expiry) still fires,
+    -- and the audit records underPerTxCap=false + humanApproved=true (honest).
+    choice CommitApproved : CommitResult
+      with
+        quoteCid  : ContractId RfqQuote
+        amount    : Decimal
+        cashCid   : ContractId Iou
+        agentNote : Text
+      -- treasurer + agent co-authorize: the agent alone can NEVER over-spend; only
+      -- a treasurer approval (which carries agent authority via the request) does.
+      controller treasurer, agent
+      do
+        now   <- getTime
+        quote <- fetch quoteCid
+
+        let underPerTxCap    = amount <= perTxCap
+            underBudget      = amount <= remainingBudget
+            supplierApproved = quote.supplier `elem` approvedSuppliers
+            categoryMatch    = quote.category == category
+            notExpired       = now < expiry
+        -- per-tx cap is NOT asserted here — the treasurer is approving an override
+        assertMsg "amount exceeds remaining budget" underBudget
+        assertMsg "supplier not on allow-list"      supplierApproved
+        assertMsg "category mismatch"               categoryMatch
+        assertMsg "mandate expired"                 notExpired
+        assertMsg "amount must match quoted price"  (amount == quote.price)
+
+        poCid <- exercise quoteCid Accept with buyerAgent = agent, regulator = regulator
+        (paidCash, _change) <- exercise cashCid Transfer with
+                                 newOwner = quote.supplier, transferAmount = amount
+
+        auditCid <- create AuditRecord with
+          treasurer, agent, regulator
+          category, supplier = quote.supplier, amount
+          underPerTxCap, underBudget, supplierApproved, categoryMatch, notExpired
+          humanApproved = True
+          committedAt = now
+          agentNote
+
+        newMandate <- create this with remainingBudget = remainingBudget - amount
+
+        pure CommitResult with
+          mandate = newMandate, purchaseOrder = poCid, cash = paidCash, audit = auditCid
 
     -- Instant kill switch. CONSUMING (default): archives the mandate, so the
     -- agent's next Commit fails because its input contract no longer exists.
