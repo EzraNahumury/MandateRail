@@ -1,7 +1,8 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { StateSnapshot, CommitMode } from "@/app/lib/types";
 import { fetchState, postCommit, postIssue, postRevoke } from "@/app/lib/api";
 import { Button, Card, Chip, MoneyGauge, money, Stat } from "@/app/components/ui";
@@ -21,6 +22,23 @@ const ROLES = [
   { key: "supplier", label: "Supplier A" },
 ] as const;
 type Role = (typeof ROLES)[number]["key"];
+
+/* ---------- sign-in icons ---------- */
+const svg = (children: ReactNode) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
+);
+const IconArrow = () => svg(<path d="M5 12h14M13 6l6 6-6 6" />);
+const IconBank = () => svg(<><path d="m4 10 8-6 8 6" /><path d="M5 10v9M19 10v9M9.5 10v9M14.5 10v9" /><path d="M3 20h18" /></>);
+const IconBot = () => svg(<><rect x="4" y="8" width="16" height="12" rx="2" /><path d="M12 8V4M9 13h.01M15 13h.01M9.5 17h5" /><path d="M2 13h2M20 13h2" /></>);
+const IconBox = () => svg(<><path d="m21 8-9-5-9 5 9 5 9-5z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></>);
+const IconShield = () => svg(<><path d="M12 3 4 6v6c0 5 8 9 8 9s8-4 8-9V6z" /><path d="m9.5 12 2 2 3.5-4" /></>);
+const IconGrid = () => svg(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /></>);
+
+const PARTIES = [
+  { key: "treasurer", title: "Treasurer Console", sub: "issuer · holds mandate authority", icon: IconBank, chip: "bg-sky-50 text-sky-600 ring-sky-100" },
+  { key: "agent", title: "Buyer Agent", sub: "autonomous buyer · spends on policy", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
+  { key: "supplier", title: "Supplier A", sub: "counterparty · receives a slice", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+] as const;
 
 export default function Home() {
   const [snap, setSnap] = useState<StateSnapshot | null>(null);
@@ -245,63 +263,67 @@ export default function Home() {
     <div className="min-h-screen w-full bg-[#f5f5f3] text-neutral-900 [background-image:radial-gradient(circle,rgba(0,0,0,0.035)_1px,transparent_1px)] [background-size:26px_26px]">
       <div className="mx-auto max-w-7xl px-6 py-8">
         {/* Header */}
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <Link href="/" className="mb-1 inline-block text-xs text-neutral-500 transition hover:text-neutral-900">
-              ← Back to home
-            </Link>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-neutral-900">MandateRail</h1>
-              <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">
-                on Canton
-              </span>
-            </div>
-            <p className="mt-1 text-sm text-neutral-500">
-              Confidential, ledger-enforced spend mandates for agentic procurement.{" "}
-              <span className="text-neutral-700">Trust the ledger, not the model.</span>
-            </p>
+        <header className="mb-8 flex items-center justify-between gap-4 border-b border-neutral-200 pb-4">
+          <div className="flex items-center gap-2.5">
+            <Image src="/logo.png" alt="MandateRail" width={32} height={32} className="h-8 w-8 rounded-full object-cover ring-1 ring-neutral-200" />
+            <span className="text-lg font-bold tracking-tight text-neutral-900">MandateRail</span>
+            <span className="rounded-md bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700 ring-1 ring-violet-200">on Canton</span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-500" : "bg-red-500"}`} />
-            <span className={connected ? "text-emerald-600" : "text-red-600"}>
-              {connected ? "ledger live" : "disconnected — is `daml start` running?"}
+          <div className="flex items-center gap-4 text-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-500" : "bg-red-500"}`} />
+              <span className={connected ? "text-emerald-600" : "text-red-600"}>{connected ? "ledger live" : "disconnected"}</span>
             </span>
+            <Link href="/" className="text-neutral-500 transition hover:text-neutral-900">← Home</Link>
           </div>
         </header>
 
         {session === null ? (
-          /* Login screen — Canton identity, no browser wallet */
-          <div className="grid min-h-[58vh] place-items-center">
-            <div className="w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-neutral-900">Sign in</h2>
-              <p className="mt-1 text-xs leading-relaxed text-neutral-500">
-                Canton has no browser wallet. Choose the <span className="text-neutral-700">party</span> (identity) to act
-                as — auth is a per-party JWT minted server-side (enterprise SSO/OIDC in production).
-              </p>
-              <div className="mt-4 space-y-2">
-                {(
-                  [
-                    ["treasurer", "Treasurer Console", "issuer · holds mandate authority"],
-                    ["agent", "Buyer Agent", "autonomous buyer"],
-                    ["supplier", "Supplier A", "counterparty"],
-                  ] as const
-                ).map(([key, title, sub]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSession(key)}
-                    className="flex w-full items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-left transition hover:-translate-y-0.5 hover:border-neutral-900 hover:bg-white"
-                  >
-                    <span className="text-sm font-semibold text-neutral-900">{title}</span>
-                    <span className="text-[11px] text-neutral-500">{sub}</span>
-                  </button>
-                ))}
+          /* Sign-in — Canton identity, no browser wallet */
+          <div className="grid min-h-[62vh] place-items-center px-4">
+            <div className="w-full max-w-md">
+              <div className="mb-7 flex flex-col items-center text-center">
+                <Image src="/logo.png" alt="MandateRail" width={48} height={48} className="h-12 w-12 rounded-2xl object-cover shadow-sm ring-1 ring-neutral-200" />
+                <h2 className="mt-4 text-2xl font-bold tracking-tight text-neutral-900">Choose your identity</h2>
+                <p className="mt-2 max-w-xs text-sm leading-relaxed text-neutral-500">
+                  Canton has no browser wallet — sign in as a party. Each session is a per-party JWT (enterprise SSO/OIDC in production).
+                </p>
               </div>
+
+              <div className="space-y-2.5">
+                {PARTIES.map((p) => {
+                  const Icon = p.icon;
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => setSession(p.key)}
+                      className="group flex w-full items-center gap-4 rounded-2xl border border-neutral-200 bg-white p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-neutral-900 hover:shadow-md"
+                    >
+                      <span className={`grid h-11 w-11 flex-shrink-0 place-items-center rounded-xl ring-1 transition duration-200 group-hover:scale-105 ${p.chip}`}>
+                        <Icon />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-neutral-900">{p.title}</span>
+                        <span className="block truncate text-xs text-neutral-500">{p.sub}</span>
+                      </span>
+                      <span className="text-neutral-300 transition group-hover:translate-x-0.5 group-hover:text-neutral-900">
+                        <IconArrow />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
               <button
                 onClick={() => setSession("cockpit")}
-                className="mt-3 w-full rounded-lg border border-neutral-300 px-4 py-2.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-neutral-300 p-3.5 text-sm font-semibold text-neutral-600 transition hover:border-neutral-900 hover:text-neutral-900"
               >
-                Open cockpit — view all parties (demo)
+                <IconGrid /> View all parties · cockpit
               </button>
+
+              <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-neutral-400">
+                <IconShield /> Per-party JWT · no seed phrase · no browser wallet
+              </div>
             </div>
           </div>
         ) : (
