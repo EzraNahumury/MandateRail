@@ -27,15 +27,21 @@ template TreasuryCharter
       with
         agent             : Party
         bank              : Party
+        mandateId         : Text
         category          : Text
         perTxCap          : Decimal
         remainingBudget   : Decimal
         expiry            : Time
         approvedSuppliers : [Party]
+        allowAutoCommit   : Bool
       controller treasurer
       do
         assertMsg "per-tx cap exceeds charter ceiling" (perTxCap <= ceilingPerTxCap)
         assertMsg "budget exceeds charter ceiling"     (remainingBudget <= ceilingBudget)
+        -- Issuance invariant: never mint an already-impossible mandate whose
+        -- per-tx cap is larger than its own budget. (Not an `ensure` on the
+        -- mandate itself — a near-exhausted mandate after spends is legitimate.)
+        assertMsg "per-tx cap exceeds budget at issuance" (perTxCap <= remainingBudget)
         create SpendMandate with
           treasurer
           agent
@@ -43,8 +49,10 @@ template TreasuryCharter
           regulator
           charterCeo = ceo
           charterCfo = cfo
+          mandateId
           category
           perTxCap
           remainingBudget
           expiry
           approvedSuppliers
+          allowAutoCommit

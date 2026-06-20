@@ -15,6 +15,18 @@ data CommitResult = CommitResult with
     audit         : ContractId AuditRecord
   deriving (Eq, Show)
 
+-- | The five ledger verdicts for a candidate spend. Computed by ONE function so
+-- the SAME expression powers (a) the Commit preconditions, (b) the AuditRecord
+-- evidence, and (c) the read-only DryRunCommit — they can never drift apart, and
+-- none of them is hardcoded.
+data Verdicts = Verdicts with
+    underPerTxCap    : Bool
+    underBudget      : Bool
+    supplierApproved : Bool
+    categoryMatch    : Bool
+    notExpired       : Bool
+  deriving (Eq, Show)
+
 -- | The enforcement core. A treasurer issues a SpendMandate to a named agent.
 -- Every limit (per-tx cap, cumulative budget, expiry, allow-list) is enforced
 -- as a precondition of the Commit choice — by the ledger, not by app code or
@@ -28,11 +40,14 @@ template SpendMandate
     regulator         : Party
     charterCeo        : Party
     charterCfo        : Party
+    mandateId         : Text     -- human-readable lineage key (e.g. MANDATE-2026-001)
     category          : Text
     perTxCap          : Decimal
     remainingBudget   : Decimal
     expiry            : Time
     approvedSuppliers : [Party]
+    allowAutoCommit   : Bool      -- capability dial: False => agent may ONLY escalate,
+                                  -- never auto-spend (every buy needs treasurer sign-off)
   where
     signatory treasurer
     observer agent, charterCeo, charterCfo
@@ -42,6 +57,14 @@ template SpendMandate
     -- The chartering CEO + CFO ARE observers — they are the top authority layer.
 
     ensure perTxCap > 0.0 && remainingBudget >= 0.0
+
+    -- Derive the verdicts for a candidate spend against THIS mandate.
+    let verdictsFor (quote : RfqQuote) (amount : Decimal) (now : Time) = Verdicts with
+          underPerTxCap    = amount <= perTxCap
+          underBudget      = amount <= remainingBudget
+          supplierApproved = quote.supplier `elem` approvedSuppliers
+          categoryMatch    = quote.category == category
+          notExpired       = now < expiry
 
     -- Agent commits a compliant purchase. CONSUMING (default): archives this
     -- mandate and recreates it with reduced remainingBudget (the anti-race
@@ -59,18 +82,17 @@ template SpendMandate
         quote <- fetch quoteCid
 
         -- LEDGER-ENFORCED POLICY (not app logic, not a prompt). The verdicts are
-        -- bound to lets so the SAME values become both the precondition and the
-        -- audit evidence — derived, never hardcoded.
-        let underPerTxCap    = amount <= perTxCap
-            underBudget      = amount <= remainingBudget
-            supplierApproved = quote.supplier `elem` approvedSuppliers
-            categoryMatch    = quote.category == category
-            notExpired       = now < expiry
-        assertMsg "amount exceeds per-tx cap"       underPerTxCap
-        assertMsg "amount exceeds remaining budget" underBudget
-        assertMsg "supplier not on allow-list"      supplierApproved
-        assertMsg "category mismatch"               categoryMatch
-        assertMsg "mandate expired"                 notExpired
+        -- derived once and reused as both precondition and audit evidence.
+        let v = verdictsFor quote amount now
+        -- Capability gate: a mandate minted without auto-commit authority can only
+        -- ever escalate. The agent's autonomous spend is OFF unless the treasurer
+        -- explicitly granted it at issuance.
+        assertMsg "auto-commit not permitted by this mandate" allowAutoCommit
+        assertMsg "amount exceeds per-tx cap"       v.underPerTxCap
+        assertMsg "amount exceeds remaining budget" v.underBudget
+        assertMsg "supplier not on allow-list"      v.supplierApproved
+        assertMsg "category mismatch"               v.categoryMatch
+        assertMsg "mandate expired"                 v.notExpired
         assertMsg "amount must match quoted price"  (amount == quote.price)
 
         -- Bring in the supplier's authority via their standing sealed offer.
@@ -86,9 +108,11 @@ template SpendMandate
         -- ledger-validated spend. The booleans are the ledger's verdict (the
         -- authority); agentNote is advisory data only.
         auditCid <- create AuditRecord with
-          treasurer, agent, regulator
+          treasurer, agent, regulator, mandateId
           category, supplier = quote.supplier, amount
-          underPerTxCap, underBudget, supplierApproved, categoryMatch, notExpired
+          underPerTxCap = v.underPerTxCap, underBudget = v.underBudget
+          supplierApproved = v.supplierApproved, categoryMatch = v.categoryMatch
+          notExpired = v.notExpired
           humanApproved = False
           committedAt = now
           agentNote
@@ -106,6 +130,8 @@ template SpendMandate
     -- TREASURER who has reviewed an escalation can authorize a single over-cap
     -- buy. Every other policy (budget, allow-list, category, expiry) still fires,
     -- and the audit records underPerTxCap=false + humanApproved=true (honest).
+    -- Note: allowAutoCommit is intentionally NOT checked here — a treasurer-signed
+    -- approval is exactly the authority a no-auto-commit mandate routes through.
     choice CommitApproved : CommitResult
       with
         quoteCid  : ContractId RfqQuote
@@ -119,16 +145,12 @@ template SpendMandate
         now   <- getTime
         quote <- fetch quoteCid
 
-        let underPerTxCap    = amount <= perTxCap
-            underBudget      = amount <= remainingBudget
-            supplierApproved = quote.supplier `elem` approvedSuppliers
-            categoryMatch    = quote.category == category
-            notExpired       = now < expiry
+        let v = verdictsFor quote amount now
         -- per-tx cap is NOT asserted here — the treasurer is approving an override
-        assertMsg "amount exceeds remaining budget" underBudget
-        assertMsg "supplier not on allow-list"      supplierApproved
-        assertMsg "category mismatch"               categoryMatch
-        assertMsg "mandate expired"                 notExpired
+        assertMsg "amount exceeds remaining budget" v.underBudget
+        assertMsg "supplier not on allow-list"      v.supplierApproved
+        assertMsg "category mismatch"               v.categoryMatch
+        assertMsg "mandate expired"                 v.notExpired
         assertMsg "amount must match quoted price"  (amount == quote.price)
 
         poCid <- exercise quoteCid Accept with buyerAgent = agent, regulator = regulator
@@ -136,9 +158,11 @@ template SpendMandate
                                  newOwner = quote.supplier, transferAmount = amount
 
         auditCid <- create AuditRecord with
-          treasurer, agent, regulator
+          treasurer, agent, regulator, mandateId
           category, supplier = quote.supplier, amount
-          underPerTxCap, underBudget, supplierApproved, categoryMatch, notExpired
+          underPerTxCap = v.underPerTxCap, underBudget = v.underBudget
+          supplierApproved = v.supplierApproved, categoryMatch = v.categoryMatch
+          notExpired = v.notExpired
           humanApproved = True
           committedAt = now
           agentNote
@@ -148,15 +172,51 @@ template SpendMandate
         pure CommitResult with
           mandate = newMandate, purchaseOrder = poCid, cash = paidCash, audit = auditCid
 
+    -- Read-only pre-flight. Returns the SAME ledger verdicts a Commit would assert
+    -- on, WITHOUT spending — so the UI's rule-lights are sourced from the ledger
+    -- itself, never re-implemented in TypeScript. NONCONSUMING: the mandate is
+    -- untouched. The agent can ask "would this pass?" before committing.
+    nonconsuming choice DryRunCommit : [(Text, Bool)]
+      with
+        quoteCid : ContractId RfqQuote
+        amount   : Decimal
+      controller agent
+      do
+        now   <- getTime
+        quote <- fetch quoteCid
+        let v = verdictsFor quote amount now
+        pure
+          [ ("autoCommitAllowed", allowAutoCommit)
+          , ("underPerTxCap",     v.underPerTxCap)
+          , ("underBudget",       v.underBudget)
+          , ("supplierApproved",  v.supplierApproved)
+          , ("categoryMatch",     v.categoryMatch)
+          , ("notExpired",        v.notExpired)
+          , ("priceMatches",      amount == quote.price)
+          ]
+
     -- Instant kill switch. CONSUMING (default): archives the mandate, so the
     -- agent's next Commit fails because its input contract no longer exists.
-    choice Revoke : ()
+    -- Now emits an append-only RevocationRecord (who/why), visible to the
+    -- regulator — revocation is no longer a silent, untraceable act.
+    choice Revoke : ContractId RevocationRecord
+      with
+        reason : Text
       controller treasurer
-      do pure ()
+      do
+        now <- getTime
+        create RevocationRecord with
+          mandateId, revokedBy = treasurer, role = "treasurer", reason, regulator, at = now
 
     -- Top-layer kill switch: the CEO + CFO who chartered this mandate can revoke
     -- it (real multi-sig). Archiving the mandate makes the agent's next Commit
     -- fail — a cascade from the authority layer above, and it actually fires.
-    choice RevokeByCharter : ()
+    -- Also audited via RevocationRecord (role = "charter").
+    choice RevokeByCharter : ContractId RevocationRecord
+      with
+        reason : Text
       controller charterCeo, charterCfo
-      do pure ()
+      do
+        now <- getTime
+        create RevocationRecord with
+          mandateId, revokedBy = charterCeo, role = "charter", reason, regulator, at = now

@@ -15,6 +15,7 @@ template AuditRecord
     treasurer        : Party
     agent            : Party
     regulator        : Party
+    mandateId        : Text   -- human-readable lineage key (e.g. MANDATE-2026-001)
     category         : Text
     supplier         : Party
     amount           : Decimal
@@ -28,4 +29,21 @@ template AuditRecord
     agentNote        : Text
   where
     signatory treasurer, agent
+    observer regulator
+
+-- | Append-only, regulator-observable proof that a mandate was KILLED — by whom,
+-- under which authority layer, and why. Closes the gap where a silent Revoke left
+-- no on-chain trace. It deliberately carries NO cap/budget: the regulator learns
+-- the kill event and its reason, never the private financials (selective
+-- disclosure, same as AuditRecord).
+template RevocationRecord
+  with
+    mandateId : Text
+    revokedBy : Party
+    role      : Text    -- "treasurer" (operational kill) | "charter" (CEO+CFO cascade)
+    reason    : Text
+    regulator : Party
+    at        : Time
+  where
+    signatory revokedBy
     observer regulator

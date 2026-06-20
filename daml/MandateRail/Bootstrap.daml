@@ -48,11 +48,13 @@ setup = do
     exerciseCmd charter MintMandate with
       agent = agent
       bank = bank
+      mandateId = "MANDATE-2026-001"
       category = "cloud-compute"
       perTxCap = 10000.0
       remainingBudget = 50000.0
       expiry = expiry
       approvedSuppliers = [supA, supB, supC]
+      allowAutoCommit = True
 
   -- Sealed quotes from the approved suppliers.
   _qA <- submit supA do
