@@ -639,7 +639,7 @@ flowchart TB
 | **Integration** | **Daml Ledger API** — JSON API + gRPC, streaming | Live, party-scoped reads that drive the UI; the agent's action surface |
 | **Codegen / types** | `@daml/types`, `@daml/ledger`, `@daml/react`, Daml TS codegen | Type-safe contract bindings in TypeScript |
 | **Agent** | **TypeScript** (Node) — thin scripted loop | Security lives in the ledger; agent is intentionally minimal |
-| **Agent intent (optional)** | **Claude API** (`claude-opus-4-8`) — *phrasing only, zero enforcement authority* | Demonstrates "agentic" intent without making the LLM a trust anchor |
+| **Agent reasoning (optional)** | **Ollama Cloud** (`gpt-oss:120b-cloud`) — *chooses among ledger-compliant quotes, whitelist-validated, zero enforcement authority* | Demonstrates real agentic reasoning without making the LLM a trust anchor |
 | **Frontend** | **React + Vite + TypeScript**, Tailwind CSS, `@daml/react` | Three party-scoped panels with live streaming state |
 | **Identity** | JWT party tokens (Canton sandbox auth) | Scopes each UI/agent to a single Daml party |
 | **Testing** | **Daml Script** (ledger tests) + Vitest (TS) | Proves policy enforcement & atomicity deterministically |
@@ -669,10 +669,10 @@ mandaterail/
 ├── agent/                         # Layer 3 - buyer agent (zero enforcement authority)
 │   ├── src/
 │   │   ├── agent.ts               # read quotes -> reason -> exercise Commit
-│   │   ├── reasoner.ts            # optional REAL Claude call (validated, ledger still decides)
+│   │   ├── reasoner.ts            # optional REAL model call via Ollama Cloud (validated, ledger still decides)
 │   │   ├── sanitize.ts            # strip prompt-injection from counterparty ledger text
 │   │   ├── intent.ts              # presentation-only intent line (no authority)
-│   │   └── config.ts             # dev token mint + Anthropic settings
+│   │   └── config.ts             # dev token mint + Ollama Cloud settings
 │   └── package.json
 ├── frontend/                      # Layer 4 - Next.js UI (standalone npm app, own lockfile)
 │   ├── app/
@@ -701,7 +701,7 @@ mandaterail/
 ### Prerequisites
 - [Daml SDK](https://docs.daml.com/getting-started/installation.html) (latest)
 - Node.js >= 18 and `pnpm`
-- (Optional) `ANTHROPIC_API_KEY` for the LLM-phrased intent demo
+- (Optional) `OLLAMA_KEY` (+ `OLLAMA_HOST`/`OLLAMA_MODEL`) for the live model-reasoning demo via Ollama Cloud
 
 ### 1. Build & start the ledger
 
@@ -774,7 +774,7 @@ Copy `.env.example` to `.env` in `agent/` (the `frontend/` UI uses its own `.env
 | `TREASURER_TOKEN` | _(JWT)_ | ui (treasurer) | Party JWT scoping the console to the `treasurer` party |
 | `AGENT_TOKEN` | _(JWT)_ | agent, ui (agent) | Party JWT for the `agent` party |
 | `SUPPLIER_A_TOKEN` … `D` | _(JWT)_ | ui (supplier) | Per-supplier party JWTs |
-| `ANTHROPIC_API_KEY` | _(unset)_ | agent (optional) | Only for the LLM-phrased "intent" demo; **omit to run fully scripted at $0** |
+| `OLLAMA_KEY` | _(unset)_ | agent (optional) | Enables the real model-reasoning step via Ollama Cloud (`OLLAMA_HOST`/`OLLAMA_MODEL` default to `https://ollama.com` / `gpt-oss:120b-cloud`); **omit to run fully deterministic** |
 
 > Party JWTs for the local sandbox are minted by `daml start` / the JSON API dev auth; a helper script (`scripts/tokens.sh`) prints ready-to-paste tokens for each demo party.
 

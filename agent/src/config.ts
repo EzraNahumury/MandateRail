@@ -1,3 +1,4 @@
+import "dotenv/config";
 import jwt from "jsonwebtoken";
 
 const RAW_URL = process.env.LEDGER_URL ?? "http://localhost:7575";
@@ -19,10 +20,11 @@ if (process.env.NODE_ENV === "production" && (!process.env.LEDGER_SECRET || SECR
 }
 
 // --- LLM reasoning (optional). The agent runs fully WITHOUT a key (deterministic
-// cheapest-compliant fallback); with a key it adds a real Claude rationale. The
-// model NEVER has enforcement authority — the ledger does. ---
-export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
-export const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+// cheapest-compliant fallback); with an OLLAMA_KEY it adds a real model rationale
+// via Ollama Cloud. The model NEVER has enforcement authority — the ledger does. ---
+export const OLLAMA_HOST = (process.env.OLLAMA_HOST ?? "https://ollama.com").replace(/\/+$/, "");
+export const OLLAMA_KEY = process.env.OLLAMA_KEY ?? "";
+export const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "gpt-oss:120b-cloud";
 export const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? "30000");
 
 interface LedgerClaims {

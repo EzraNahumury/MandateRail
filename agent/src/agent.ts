@@ -12,10 +12,13 @@ import { chooseQuote, type ProcurementContext } from "./reasoner";
 const num = (s: string) => Number(s);
 const short = (p: string) => p.split("::")[0];
 
-/** Discover the BuyerAgent party id from the ledger (no hard-coding). */
-async function findAgentParty(): Promise<string> {
+/** Discover the BuyerAgent party id + a party-id -> display-name map (so the
+ *  model and logs see "SupplierA", not an opaque party-UUID). One admin query. */
+async function discoverParties(): Promise<{ agentId: string; labels: Record<string, string> }> {
   const admin = new Ledger({ token: adminToken(), httpBaseUrl: LEDGER_URL });
   const parties = await admin.listKnownParties();
+  const labels: Record<string, string> = {};
+  for (const p of parties) if (p.displayName) labels[p.identifier] = p.displayName;
   const agent = parties.find(
     (p) => p.displayName === "BuyerAgent" || p.identifier.startsWith("BuyerAgent"),
   );
@@ -24,7 +27,7 @@ async function findAgentParty(): Promise<string> {
       "Party 'BuyerAgent' not found. Is `daml start` running with the Bootstrap init-script?",
     );
   }
-  return agent.identifier;
+  return { agentId: agent.identifier, labels };
 }
 
 function logQuote(label: string, q: CreateEvent<RfqQuote>): void {
@@ -75,7 +78,8 @@ async function tryCommit(
 async function main(): Promise<void> {
   console.log("MandateRail buyer agent — the ledger, not the model, is the guardrail.\n");
 
-  const agentParty = await findAgentParty();
+  const { agentId: agentParty, labels } = await discoverParties();
+  const label = (id: string) => labels[id] ?? short(id);
   const ledger = new Ledger({ token: tokenFor(agentParty), httpBaseUrl: LEDGER_URL });
 
   const mandates = await ledger.query(SpendMandate);
@@ -113,7 +117,7 @@ async function main(): Promise<void> {
     .sort((a, b) => num(a.payload.price) - num(b.payload.price));
 
   // 1) HAPPY PATH — the LLM reasons over the ALREADY-COMPLIANT quotes; the ledger
-  //    is still the guardrail. (Runs deterministically when no ANTHROPIC_API_KEY.)
+  //    is still the guardrail. (Runs deterministically when no OLLAMA_KEY.)
   console.log("\n[1] Reasoning over compliant quotes ...");
   if (compliant.length === 0) throw new Error("No compliant quote found.");
 
@@ -121,8 +125,8 @@ async function main(): Promise<void> {
     category,
     perTxCap: cap,
     remainingBudget: remaining,
-    approvedSuppliers: approvedSuppliers.map(short),
-    quotes: compliant.map((q) => sanitizeQuote(q.payload.supplier, q.payload.category, q.payload.price)),
+    approvedSuppliers: approvedSuppliers.map(label),
+    quotes: compliant.map((q) => sanitizeQuote(label(q.payload.supplier), q.payload.category, q.payload.price)),
   };
   const decision = await chooseQuote(ctx);
   console.log(
@@ -136,7 +140,7 @@ async function main(): Promise<void> {
   // safety floor if the model escalated or its pick can't be resolved.
   const winner =
     (decision.decision === "award" &&
-      compliant.find((q) => short(q.payload.supplier) === decision.chosenSupplier)) ||
+      compliant.find((q) => label(q.payload.supplier) === decision.chosenSupplier)) ||
     compliant[0];
   const cash1 = await ledger.query(Iou);
   const fund = pickFund(cash1, num(winner.payload.price));

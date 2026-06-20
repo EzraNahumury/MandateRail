@@ -1,4 +1,4 @@
-// The reasoning layer. Optionally calls a real Anthropic Claude model to choose
+// The reasoning layer. Optionally calls a real model (Ollama Cloud) to choose
 // among the ALREADY-LEDGER-COMPLIANT quotes and produce an auditable rationale.
 //
 // It has ZERO enforcement authority. Three independent backstops guarantee that:
@@ -10,8 +10,7 @@
 //      non-compliant pick at the ledger (testForgedAmountRejected et al.).
 // This is the inversion of the "AI wrapper": the model advises, the ledger decides.
 
-import Anthropic from "@anthropic-ai/sdk";
-import { ANTHROPIC_API_KEY, ANTHROPIC_MODEL, LLM_TIMEOUT_MS } from "./config";
+import { OLLAMA_HOST, OLLAMA_KEY, OLLAMA_MODEL, LLM_TIMEOUT_MS } from "./config";
 import { sanitizeText, type SafeQuote } from "./sanitize";
 
 export const SYSTEM_PROMPT = `You are an institutional procurement agent operating under a Canton SpendMandate issued by a corporate treasurer.
@@ -121,28 +120,43 @@ function validate(raw: unknown, ctx: ProcurementContext): Decision | null {
   };
 }
 
+/** Call Ollama Cloud's chat endpoint (OpenAI-style auth, native chat body). */
+async function ollamaChat(ctx: ProcurementContext): Promise<string> {
+  const res = await fetch(`${OLLAMA_HOST}/api/chat`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OLLAMA_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      stream: false,
+      format: "json", // force a parseable JSON object
+      options: { temperature: 0 },
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: buildContext(ctx) },
+      ],
+    }),
+    signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`Ollama HTTP ${res.status}`);
+  const data = (await res.json()) as { message?: { content?: string } };
+  return data.message?.content ?? "";
+}
+
 /**
- * Choose a quote. With ANTHROPIC_API_KEY set, asks Claude (timeout-bounded) and
+ * Choose a quote. With OLLAMA_KEY set, asks the model (timeout-bounded) and
  * validates its output; on any failure (no key, timeout, parse/validation error)
  * falls back to the deterministic cheapest-compliant. The result is advisory —
  * the ledger still re-checks every rule when the agent commits.
  */
 export async function chooseQuote(ctx: ProcurementContext): Promise<Decision> {
-  if (!ANTHROPIC_API_KEY) {
+  if (!OLLAMA_KEY) {
     return deterministicChoice(ctx, "no LLM key configured — deterministic mode");
   }
   try {
-    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY, timeout: LLM_TIMEOUT_MS });
-    const msg = await client.messages.create({
-      model: ANTHROPIC_MODEL,
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: "user", content: buildContext(ctx) }],
-    });
-    const text = msg.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
+    const text = await ollamaChat(ctx);
     const validated = validate(parseModelJson(text), ctx);
     if (!validated) return deterministicChoice(ctx, "LLM output failed validation — safety fallback");
     // Belt and suspenders: if the model escalated but a compliant quote exists,

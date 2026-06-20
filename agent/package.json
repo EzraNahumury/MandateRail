@@ -8,10 +8,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.40.0",
     "@daml.js/mandaterail-1.0.0": "workspace:*",
     "@daml/ledger": "2.10.4",
     "@daml/types": "2.10.4",
+    "dotenv": "^16.4.5",
     "jsonwebtoken": "^9.0.2"
   },
   "devDependencies": {
