@@ -6,6 +6,8 @@ import { Iou } from "@daml.js/mandaterail-1.0.0/lib/MandateRail/Cash";
 
 import { LEDGER_URL, adminToken, tokenFor } from "./config";
 import { describeIntent } from "./intent";
+import { sanitizeQuote } from "./sanitize";
+import { chooseQuote, type ProcurementContext } from "./reasoner";
 
 const num = (s: string) => Number(s);
 const short = (p: string) => p.split("::")[0];
@@ -43,12 +45,14 @@ async function tryCommit(
   quote: CreateEvent<RfqQuote>,
   cashCid: ContractId<Iou>,
   expect: "ok" | "reject",
+  agentNote: string,
 ): Promise<void> {
   try {
     const [result] = await ledger.exercise(SpendMandate.Commit, mandateCid, {
       quoteCid: quote.contractId,
       amount: quote.payload.price,
       cashCid,
+      agentNote,
     });
     if (expect === "reject") {
       console.error("   ✗ UNEXPECTED: commit succeeded but should have been rejected.");
@@ -91,21 +95,54 @@ async function main(): Promise<void> {
   const remaining = num(remainingBudget);
   const approved = new Set(approvedSuppliers);
 
+  // Pre-flight: if the mandate is exhausted or expired, stand down. The ledger
+  // would reject anyway — this just avoids burning an LLM call on a dead mandate.
+  if (remaining <= 0) {
+    console.log("\nMandate budget exhausted — standing down. (The ledger would reject regardless.)");
+    return;
+  }
+  if (new Date(mandate.payload.expiry).getTime() <= Date.now()) {
+    console.log("\nMandate expired — standing down. (The ledger would reject regardless.)");
+    return;
+  }
+
   const compliant = quotes
     .filter((q) => q.payload.category === category)
     .filter((q) => approved.has(q.payload.supplier))
     .filter((q) => num(q.payload.price) <= cap && num(q.payload.price) <= remaining)
     .sort((a, b) => num(a.payload.price) - num(b.payload.price));
 
-  // 1) HAPPY PATH — award the cheapest compliant quote.
-  console.log("\n[1] Awarding the cheapest compliant quote ...");
+  // 1) HAPPY PATH — the LLM reasons over the ALREADY-COMPLIANT quotes; the ledger
+  //    is still the guardrail. (Runs deterministically when no ANTHROPIC_API_KEY.)
+  console.log("\n[1] Reasoning over compliant quotes ...");
   if (compliant.length === 0) throw new Error("No compliant quote found.");
-  const winner = compliant[0];
+
+  const ctx: ProcurementContext = {
+    category,
+    perTxCap: cap,
+    remainingBudget: remaining,
+    approvedSuppliers: approvedSuppliers.map(short),
+    quotes: compliant.map((q) => sanitizeQuote(q.payload.supplier, q.payload.category, q.payload.price)),
+  };
+  const decision = await chooseQuote(ctx);
+  console.log(
+    `   decision=${decision.decision} pick=${decision.chosenSupplier ?? "-"} ` +
+      `confidence=${decision.confidence.toFixed(2)} source=${decision.source}` +
+      (decision.riskFlags.length ? ` riskFlags=[${decision.riskFlags.join(", ")}]` : ""),
+  );
+  console.log(`   rationale: "${decision.rationale}"`);
+
+  // Map the model's pick back to a real quote; the cheapest-compliant is the
+  // safety floor if the model escalated or its pick can't be resolved.
+  const winner =
+    (decision.decision === "award" &&
+      compliant.find((q) => short(q.payload.supplier) === decision.chosenSupplier)) ||
+    compliant[0];
   const cash1 = await ledger.query(Iou);
   const fund = pickFund(cash1, num(winner.payload.price));
   if (!fund) throw new Error("No funded treasury Iou visible to the agent.");
   logQuote("winner", winner);
-  await tryCommit(ledger, mandate.contractId, winner, fund.contractId, "ok");
+  await tryCommit(ledger, mandate.contractId, winner, fund.contractId, "ok", decision.rationale);
 
   // The mandate was archived + recreated with reduced budget.
   mandate = (await ledger.query(SpendMandate))[0];
@@ -118,7 +155,14 @@ async function main(): Promise<void> {
     const cash2 = await ledger.query(Iou);
     const f = pickFund(cash2, num(overCap.payload.price)) ?? cash2[0];
     logQuote("over-cap quote", overCap);
-    await tryCommit(ledger, mandate.contractId, overCap, f.contractId, "reject");
+    await tryCommit(
+      ledger,
+      mandate.contractId,
+      overCap,
+      f.contractId,
+      "reject",
+      "Attempting the lowest over-cap quote to demonstrate the ledger limit.",
+    );
   } else {
     console.log("   (no over-cap quote seeded; skipped)");
   }
@@ -130,7 +174,14 @@ async function main(): Promise<void> {
     const cash3 = await ledger.query(Iou);
     const f = pickFund(cash3, num(offList.payload.price)) ?? cash3[0];
     logQuote("off-list quote", offList);
-    await tryCommit(ledger, mandate.contractId, offList, f.contractId, "reject");
+    await tryCommit(
+      ledger,
+      mandate.contractId,
+      offList,
+      f.contractId,
+      "reject",
+      "Attempting an off-allow-list supplier to demonstrate the ledger limit.",
+    );
   } else {
     console.log("   (no off-list quote seeded; skipped)");
   }

@@ -9,6 +9,22 @@ const SECRET = process.env.LEDGER_SECRET ?? "secret";
 // `daml start` (Canton sandbox) requires a ledgerId claim; "sandbox" is its default.
 const LEDGER_ID = process.env.LEDGER_ID ?? "sandbox";
 
+// Fail fast in production if the dev signing secret was never overridden — the
+// literal "secret" default lets anyone forge an admin token. The localhost demo
+// keeps the default; only production refuses to boot.
+if (process.env.NODE_ENV === "production" && (!process.env.LEDGER_SECRET || SECRET === "secret")) {
+  throw new Error(
+    "LEDGER_SECRET must be set to a strong value in production (the default 'secret' allows token forgery).",
+  );
+}
+
+// --- LLM reasoning (optional). The agent runs fully WITHOUT a key (deterministic
+// cheapest-compliant fallback); with a key it adds a real Claude rationale. The
+// model NEVER has enforcement authority — the ledger does. ---
+export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
+export const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6";
+export const LLM_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS ?? "30000");
+
 interface LedgerClaims {
   applicationId: string;
   actAs: string[];
