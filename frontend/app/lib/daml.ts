@@ -6,17 +6,20 @@ import crypto from "node:crypto";
 const JSON_API = (process.env.JSON_API_URL ?? "http://localhost:7575").replace(/\/+$/, "");
 const SECRET = process.env.LEDGER_SECRET ?? "secret";
 const LEDGER_ID = process.env.LEDGER_ID ?? "sandbox";
-
-// Fail fast in production if the dev signing secret was never overridden — the
-// literal "secret" default lets anyone forge an admin token (mintToken admin:true).
-// The localhost demo keeps the convenient default; only production refuses to boot.
-if (process.env.NODE_ENV === "production" && (!process.env.LEDGER_SECRET || SECRET === "secret")) {
-  throw new Error(
-    "LEDGER_SECRET must be set to a strong value in production (the default 'secret' allows token forgery).",
-  );
-}
 const APP = process.env.APPLICATION_ID ?? "mandaterail";
 const PKG = process.env.DAML_PACKAGE_ID ?? "";
+
+// Fail fast in production if the dev signing secret was never overridden — the
+// literal "secret" default lets anyone forge an admin token. Checked at RUNTIME
+// (first token mint), NOT at module load, so `next build` still works with the
+// demo default. The localhost demo keeps the default; production refuses to serve.
+function assertSecretSafe(): void {
+  if (process.env.NODE_ENV === "production" && (!process.env.LEDGER_SECRET || SECRET === "secret")) {
+    throw new Error(
+      "LEDGER_SECRET must be set to a strong value in production (the default 'secret' allows token forgery).",
+    );
+  }
+}
 
 /** Fully-qualified template ids (the JSON API requires <pkgId>:<module>:<entity>). */
 export const TID = {
@@ -33,6 +36,7 @@ export const TID = {
 const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
 
 export function mintToken(actAs: string[], opts: { admin?: boolean } = {}): string {
+  assertSecretSafe();
   const header = b64({ alg: "HS256", typ: "JWT" });
   const payload = b64({
     "https://daml.com/ledger-api": {
