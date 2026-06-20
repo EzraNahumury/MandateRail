@@ -96,6 +96,46 @@ function SpendBars({ trail, cap }: { trail: AuditEntry[]; cap: number }) {
   );
 }
 
+// Two ledger-derived utilization bars, threshold-colored: how much of the budget
+// is consumed, and how close the largest single ticket ran to the per-tx cap.
+function UtilBar({ label, pct, detail }: { label: string; pct: number; detail: string }) {
+  const clamped = Math.max(0, Math.min(100, pct * 100));
+  const fill = clamped > 85 ? "bg-red-500" : clamped > 70 ? "bg-amber-500" : "bg-emerald-500";
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between text-[11px]">
+        <span className="text-neutral-500">{label}</span>
+        <span className="font-mono text-neutral-700">{detail}</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-200">
+        <div className={`h-full rounded-full ${fill} transition-all duration-500`} style={{ width: `${clamped}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LimitUtilization({
+  budgetConsumed,
+  largestTicket,
+  perTxCap,
+}: {
+  budgetConsumed: number;
+  largestTicket: number;
+  perTxCap: number;
+}) {
+  const headroom = perTxCap > 0 ? largestTicket / perTxCap : 0;
+  return (
+    <div className="mt-4 grid grid-cols-1 gap-3 rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200 sm:grid-cols-2">
+      <UtilBar label="Budget consumed" pct={budgetConsumed} detail={`${(budgetConsumed * 100).toFixed(0)}%`} />
+      <UtilBar
+        label="Largest ticket vs per-tx cap"
+        pct={headroom}
+        detail={`$${money(largestTicket)} / $${money(perTxCap)}`}
+      />
+    </div>
+  );
+}
+
 export function SpendAnalytics({
   trail,
   perTxCap,
@@ -140,6 +180,12 @@ export function SpendAnalytics({
         <MiniStat label="Avg ticket" value={`$${money(avg)}`} />
         <MiniStat label="Human-approved" value={String(humanApproved)} tone={humanApproved ? "amber" : "neutral"} />
       </div>
+
+      <LimitUtilization
+        budgetConsumed={original > 0 ? totalCommitted / original : 0}
+        largestTicket={Math.max(0, ...ordered.map((a) => Number(a.amount)))}
+        perTxCap={perTxCap}
+      />
 
       <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>

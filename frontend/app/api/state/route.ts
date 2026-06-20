@@ -7,6 +7,7 @@ import type {
   AuditPayload,
   AuditEntry,
   ApprovalPayload,
+  RevocationPayload,
   CharterPayload,
   StateSnapshot,
   QuoteKind,
@@ -24,6 +25,7 @@ export async function GET() {
       supplier: label(a.supplier),
       amount: a.amount,
       category: a.category,
+      mandateId: a.mandateId,
       committedAt: a.committedAt,
       agentNote: a.agentNote,
       humanApproved: a.humanApproved,
@@ -66,6 +68,7 @@ export async function GET() {
     const regQuotes = await query<QuotePayload>(regTok, [TID.quote]); // expect []
     const regPOs = await query<POPayload>(regTok, [TID.po]);
     const regAudit = await query<AuditPayload>(regTok, [TID.audit]);
+    const regRevocations = await query<RevocationPayload>(regTok, [TID.revocation]);
 
     const cap = mandate ? Number(mandate.perTxCap) : 0;
     const approved = new Set(mandate?.approvedSuppliers ?? []);
@@ -81,11 +84,13 @@ export async function GET() {
       treasurer: {
         mandate: mandate
           ? {
+              mandateId: mandate.mandateId,
               category: mandate.category,
               perTxCap: mandate.perTxCap,
               remainingBudget: mandate.remainingBudget,
               approvedSuppliers: mandate.approvedSuppliers.map(label),
               expiry: mandate.expiry,
+              allowAutoCommit: mandate.allowAutoCommit,
             }
           : null,
         charter: charter
@@ -123,6 +128,15 @@ export async function GET() {
         canSeeQuotes: regQuotes.length > 0, // expect false
         purchaseOrders: regPOs.map(poView),
         auditTrail: regAudit.map((a) => toEntry(a.payload)).sort(byNewest),
+        revocations: regRevocations
+          .map((r) => ({
+            mandateId: r.payload.mandateId,
+            revokedBy: label(r.payload.revokedBy),
+            role: r.payload.role,
+            reason: r.payload.reason,
+            at: r.payload.at,
+          }))
+          .sort((a, b) => b.at.localeCompare(a.at)),
       },
     };
 

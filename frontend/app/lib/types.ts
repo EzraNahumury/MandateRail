@@ -4,11 +4,13 @@ export interface MandatePayload {
   treasurer: string;
   agent: string;
   bank: string;
+  mandateId: string;
   category: string;
   perTxCap: string;
   remainingBudget: string;
   expiry: string;
   approvedSuppliers: string[];
+  allowAutoCommit: boolean;
 }
 
 export interface QuotePayload {
@@ -37,6 +39,7 @@ export interface AuditPayload {
   treasurer: string;
   agent: string;
   regulator: string;
+  mandateId: string;
   category: string;
   supplier: string;
   amount: string;
@@ -64,10 +67,28 @@ export interface AuditEntry {
   supplier: string;
   amount: string;
   category: string;
+  mandateId: string;
   committedAt: string;
   agentNote: string;
   humanApproved: boolean;
   checks: { label: string; pass: boolean }[];
+}
+
+export interface RevocationPayload {
+  mandateId: string;
+  revokedBy: string;
+  role: string;
+  reason: string;
+  regulator: string;
+  at: string;
+}
+
+export interface RevocationEntry {
+  mandateId: string;
+  revokedBy: string;
+  role: string;
+  reason: string;
+  at: string;
 }
 
 export type QuoteKind = "compliant" | "over-cap" | "off-list";
@@ -84,11 +105,13 @@ export interface CharterPayload {
 export interface StateSnapshot {
   treasurer: {
     mandate: {
+      mandateId: string;
       category: string;
       perTxCap: string;
       remainingBudget: string;
       approvedSuppliers: string[];
       expiry: string;
+      allowAutoCommit: boolean;
     } | null;
     charter: { ceilingPerTxCap: string; ceilingBudget: string } | null;
     pendingApprovals: { supplier: string; amount: string; category: string; reason: string }[];
@@ -112,6 +135,7 @@ export interface StateSnapshot {
     canSeeQuotes: boolean;
     purchaseOrders: { supplier: string; amount: string; status: string }[];
     auditTrail: AuditEntry[];
+    revocations: RevocationEntry[];
   };
 }
 

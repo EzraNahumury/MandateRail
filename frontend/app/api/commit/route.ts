@@ -4,11 +4,24 @@ import type { MandatePayload, QuotePayload, IouPayload, CommitResponse, CommitMo
 
 export const dynamic = "force-dynamic";
 
+const VALID_MODES: readonly CommitMode[] = ["cheapest", "overcap", "offlist"];
+
 export async function POST(request: Request) {
   let mode: CommitMode = "cheapest";
   try {
-    const body = (await request.json().catch(() => ({}))) as { mode?: CommitMode };
-    if (body.mode) mode = body.mode;
+    const body = (await request.json().catch(() => ({}))) as { mode?: unknown };
+    // Strict allow-list on the only untrusted input. (No app-level amount
+    // clamping needed — amount==quote.price and amount<=perTxCap are already
+    // asserted by the ledger in Mandate.daml; the ledger, not this code, decides.)
+    if (body.mode !== undefined) {
+      if (typeof body.mode !== "string" || !VALID_MODES.includes(body.mode as CommitMode)) {
+        return NextResponse.json<CommitResponse>(
+          { ok: false, error: `Invalid mode. Expected one of: ${VALID_MODES.join(", ")}.` },
+          { status: 400 },
+        );
+      }
+      mode = body.mode as CommitMode;
+    }
 
     const { byName, byId } = await parties();
     // The AGENT acts — agent-only token. The whole point is the ledger, not the

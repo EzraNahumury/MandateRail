@@ -17,7 +17,7 @@ export async function POST() {
     const omni = mintToken(ids);
 
     // 1) Archive every existing app contract.
-    for (const tid of [TID.mandate, TID.quote, TID.po, TID.iou, TID.audit, TID.charter, TID.approval]) {
+    for (const tid of [TID.mandate, TID.quote, TID.po, TID.iou, TID.audit, TID.charter, TID.approval, TID.revocation]) {
       const contracts = await query<unknown>(omni, [tid]);
       for (const c of contracts) {
         try {
@@ -60,11 +60,13 @@ export async function POST() {
     await exercise(omni, TID.charter, charter.contractId, "MintMandate", {
       agent: A,
       bank: B,
+      mandateId: "MANDATE-2026-001",
       category,
       perTxCap: "10000.0",
       remainingBudget: "50000.0",
       expiry,
       approvedSuppliers: [sA, sB, sC],
+      allowAutoCommit: true,
     });
 
     // 4) Seal the quotes.

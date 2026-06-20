@@ -39,6 +39,14 @@ export function Card({
 export function MoneyGauge({ remaining, total }: { remaining: number; total: number }) {
   const pct = total > 0 ? Math.max(0, Math.min(100, (remaining / total) * 100)) : 0;
   const spent = Math.max(0, total - remaining);
+  const spentPct = total > 0 ? (spent / total) * 100 : 0;
+  // Threshold coloring: healthy headroom -> amber -> nearly exhausted.
+  const fill =
+    spentPct > 85
+      ? "from-red-500 to-red-400"
+      : spentPct > 70
+        ? "from-amber-500 to-amber-400"
+        : "from-emerald-500 to-emerald-400";
   return (
     <div>
       <div className="mb-1.5 flex items-baseline justify-between">
@@ -47,11 +55,14 @@ export function MoneyGauge({ remaining, total }: { remaining: number; total: num
       </div>
       <div className="h-2.5 w-full overflow-hidden rounded-full bg-neutral-200">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-400 transition-all duration-500"
+          className={`h-full rounded-full bg-gradient-to-r ${fill} transition-all duration-500`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="mt-1 text-right text-[11px] text-neutral-400">${fmt(spent)} committed</div>
+      <div className="mt-1 flex justify-between text-[11px] text-neutral-400">
+        <span>{spentPct.toFixed(0)}% utilized</span>
+        <span>${fmt(spent)} committed</span>
+      </div>
     </div>
   );
 }

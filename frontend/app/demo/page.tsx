@@ -3,10 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { StateSnapshot, CommitMode } from "@/app/lib/types";
+import type { StateSnapshot, CommitMode, AuditEntry, RevocationEntry } from "@/app/lib/types";
 import { fetchState, postCommit, postIssue, postRevoke, postEscalate, postApprove, postReject } from "@/app/lib/api";
 import { Button, Card, Chip, MoneyGauge, money, Stat } from "@/app/components/ui";
 import { SpendAnalytics } from "@/app/components/charts";
+import { FlightBanner, type Flight } from "@/app/components/FlightBanner";
+import { Sidebar } from "@/app/demo/components/Sidebar";
 
 type LogKind = "ok" | "reject" | "error" | "info";
 interface LogEntry {
@@ -45,6 +47,79 @@ const SESSION_META: Record<Role, { label: string; icon: () => ReactNode; chip: s
   cockpit: { label: "Cockpit · all parties", icon: IconGrid, chip: "bg-neutral-100 text-neutral-600 ring-neutral-200" },
 };
 
+/* ---------- collapsible audit row (regulator view) ---------- */
+function AuditRow({ a }: { a: AuditEntry }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-lg border border-neutral-200 bg-white">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left"
+      >
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-neutral-900">
+          <span className={`text-neutral-400 transition-transform ${open ? "rotate-90" : ""}`}>›</span>
+          {a.supplier}
+          {a.humanApproved && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">
+              ⤴ human-approved
+            </span>
+          )}
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-sm text-neutral-900">${money(a.amount)}</span>
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-neutral-100 px-3 pb-3 pt-2">
+          <div className="mb-2 flex flex-wrap gap-1">
+            {a.checks.map((c) => (
+              <span
+                key={c.label}
+                className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${c.pass ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-red-50 text-red-700 ring-1 ring-red-200"}`}
+              >
+                {c.pass ? "✓" : "✗"} {c.label}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-neutral-500">
+            <span className="italic">&ldquo;{a.agentNote}&rdquo;</span>{" "}
+            <span className="text-neutral-400">— agent note (advisory)</span>
+          </p>
+          <div className="mt-1.5 flex items-center justify-between text-[10px] text-neutral-400">
+            <span className="font-mono">{a.mandateId}</span>
+            <span className="font-mono">{new Date(a.committedAt).toLocaleString()}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------- revocations panel (regulator view) ---------- */
+function RevocationsPanel({ revocations }: { revocations: RevocationEntry[] }) {
+  if (revocations.length === 0) return null;
+  return (
+    <div className="rounded-lg bg-red-50 p-3 ring-1 ring-red-200">
+      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-red-700">
+        Revocations ({revocations.length}) — audited kill events
+      </div>
+      <div className="space-y-1.5">
+        {revocations.map((r, i) => (
+          <div key={i} className="rounded-md bg-white p-2 text-[11px] ring-1 ring-red-100">
+            <div className="flex items-center justify-between">
+              <span className="font-mono font-semibold text-neutral-800">{r.mandateId}</span>
+              <span className="rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-red-700">
+                {r.role}
+              </span>
+            </div>
+            <p className="mt-0.5 italic text-neutral-500">&ldquo;{r.reason}&rdquo;</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [snap, setSnap] = useState<StateSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
@@ -52,11 +127,23 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [session, setSession] = useState<Role | null>(null);
+  const [flight, setFlight] = useState<Flight | null>(null);
   const logId = useRef(0);
+  const flightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const addLog = useCallback((kind: LogKind, text: string) => {
     const time = new Date().toLocaleTimeString("en-US", { hour12: false });
     setLog((l) => [{ id: ++logId.current, time, kind, text }, ...l].slice(0, 12));
+  }, []);
+
+  // Drive the live "in flight" banner. A terminal phase auto-dismisses; a
+  // "submitting" phase stays until the real ledger response replaces it.
+  const showFlight = useCallback((f: Flight | null) => {
+    if (flightTimer.current) clearTimeout(flightTimer.current);
+    setFlight(f);
+    if (f && f.phase !== "submitting") {
+      flightTimer.current = setTimeout(() => setFlight(null), 4500);
+    }
   }, []);
 
   const refresh = useCallback(async () => {
@@ -95,58 +182,93 @@ export default function Home() {
 
   const onIssue = () =>
     run(async () => {
+      showFlight({ phase: "submitting", label: "Issuing a fresh mandate…", detail: "Charter → MintMandate on Canton" });
       const r = await postIssue();
-      addLog(r.ok ? "info" : "error", r.ok ? "Treasurer issued a fresh $50,000 mandate." : `Issue failed: ${r.error}`);
+      if (r.ok) {
+        showFlight({ phase: "ok", label: "Mandate issued", detail: "$50,000 budget · $10,000 per-tx cap · 30-day expiry" });
+        addLog("info", "Treasurer issued a fresh $50,000 mandate.");
+      } else {
+        showFlight({ phase: "error", label: "Issue failed", detail: r.error });
+        addLog("error", `Issue failed: ${r.error}`);
+      }
       setBudgetMax(0);
     });
 
   const onRevoke = () =>
     run(async () => {
+      showFlight({ phase: "submitting", label: "Revoking the mandate…", detail: "Archiving + emitting an audited RevocationRecord" });
       const r = await postRevoke();
-      addLog(
-        r.ok ? "info" : "error",
-        r.ok ? "Treasurer REVOKED the mandate — the agent is now powerless." : `Revoke failed: ${r.error}`,
-      );
+      if (r.ok) {
+        showFlight({ phase: "ok", label: "Mandate revoked", detail: "The agent is now powerless · kill logged for the regulator" });
+        addLog("info", "Treasurer REVOKED the mandate — the agent is now powerless.");
+      } else {
+        showFlight({ phase: "error", label: "Revoke failed", detail: r.error });
+        addLog("error", `Revoke failed: ${r.error}`);
+      }
     });
 
   const onCommit = (mode: CommitMode) =>
     run(async () => {
+      const intent =
+        mode === "cheapest"
+          ? "Committing the cheapest compliant quote…"
+          : mode === "overcap"
+            ? "Attempting an over-cap purchase…"
+            : "Attempting an off-allow-list supplier…";
+      showFlight({ phase: "submitting", label: intent, detail: "Submitting to the Canton ledger" });
       const r = await postCommit(mode);
-      if (r.ok)
+      if (r.ok) {
+        showFlight({ phase: "ok", label: `Committed $${money(r.amount)} to ${r.supplier}`, detail: "Atomic settle — mandate debited + PO + cash" });
         addLog("ok", `COMMIT OK — $${money(r.amount)} to ${r.supplier}, settled atomically (mandate debited + PO + cash).`);
-      else if (r.rejected)
+      } else if (r.rejected) {
+        showFlight({ phase: "reject", label: "REJECTED BY THE LEDGER", detail: r.reason });
         addLog("reject", `REJECTED BY THE LEDGER — "${r.reason}". Nothing debited, no PO, no payment.`);
-      else addLog("error", r.error ?? "commit error");
+      } else {
+        showFlight({ phase: "error", label: "Commit error", detail: r.error });
+        addLog("error", r.error ?? "commit error");
+      }
     });
 
   const onEscalate = () =>
     run(async () => {
+      showFlight({ phase: "submitting", label: "Raising an approval request…", detail: "Over-cap buy — routed to the treasurer" });
       const r = await postEscalate();
-      addLog(
-        r.ok ? "info" : "error",
-        r.ok
-          ? `Agent ESCALATED $${money(r.amount)} to ${r.supplier} — over-cap, awaiting treasurer approval.`
-          : `Escalate failed: ${r.error}`,
-      );
+      if (r.ok) {
+        showFlight({ phase: "ok", label: `Escalated $${money(r.amount)} to ${r.supplier}`, detail: "Awaiting treasurer approval — agent cannot self-approve" });
+        addLog("info", `Agent ESCALATED $${money(r.amount)} to ${r.supplier} — over-cap, awaiting treasurer approval.`);
+      } else {
+        showFlight({ phase: "error", label: "Escalate failed", detail: r.error });
+        addLog("error", `Escalate failed: ${r.error}`);
+      }
     });
 
   const onApprove = () =>
     run(async () => {
+      showFlight({ phase: "submitting", label: "Approving over-cap purchase…", detail: "Treasurer co-signs CommitApproved on Canton" });
       const r = await postApprove();
-      if (r.ok)
+      if (r.ok) {
+        showFlight({ phase: "ok", label: `Approved $${money(r.amount)} to ${r.supplier}`, detail: "Committed over-cap · audited human-approved" });
         addLog("ok", `TREASURER APPROVED — $${money(r.amount)} to ${r.supplier} committed over-cap, audited human-approved.`);
-      else if (r.rejected)
+      } else if (r.rejected) {
+        showFlight({ phase: "reject", label: "REJECTED BY THE LEDGER", detail: r.reason });
         addLog("reject", `REJECTED BY THE LEDGER — "${r.reason}".`);
-      else addLog("error", r.error ?? "approve error");
+      } else {
+        showFlight({ phase: "error", label: "Approve error", detail: r.error });
+        addLog("error", r.error ?? "approve error");
+      }
     });
 
   const onReject = () =>
     run(async () => {
+      showFlight({ phase: "submitting", label: "Rejecting the escalation…", detail: "Archiving the request — nothing committed" });
       const r = await postReject();
-      addLog(
-        r.ok ? "info" : "error",
-        r.ok ? `TREASURER REJECTED the escalation — nothing committed.` : `Reject failed: ${r.error}`,
-      );
+      if (r.ok) {
+        showFlight({ phase: "ok", label: "Escalation rejected", detail: "Nothing committed · budget untouched" });
+        addLog("info", `TREASURER REJECTED the escalation — nothing committed.`);
+      } else {
+        showFlight({ phase: "error", label: "Reject failed", detail: r.error });
+        addLog("error", `Reject failed: ${r.error}`);
+      }
     });
 
   const mandate = snap?.treasurer.mandate ?? null;
@@ -174,6 +296,23 @@ export default function Home() {
             total={budgetMax || Number(mandate.remainingBudget)}
           />
           <div className="space-y-2 border-t border-neutral-100 pt-3">
+            <Stat
+              label="Mandate"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="font-mono text-xs">{mandate.mandateId}</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[9px] font-semibold ring-1 ${
+                      mandate.allowAutoCommit
+                        ? "bg-violet-50 text-violet-700 ring-violet-200"
+                        : "bg-neutral-100 text-neutral-600 ring-neutral-200"
+                    }`}
+                  >
+                    {mandate.allowAutoCommit ? "auto-commit" : "escalate-only"}
+                  </span>
+                </span>
+              }
+            />
             <Stat label="Per-transaction cap" value={`$${money(mandate.perTxCap)}`} mono />
             <Stat label="Category" value={mandate.category} />
             <Stat label="Expires" value={new Date(mandate.expiry).toLocaleDateString()} />
@@ -363,38 +502,16 @@ export default function Home() {
         </div>
       </div>
 
+      {reg && reg.revocations.length > 0 && <RevocationsPanel revocations={reg.revocations} />}
+
       <div className="flex-1">
-        <div className="mb-1.5 text-xs text-neutral-500">On-chain audit trail ({reg?.auditTrail.length ?? 0})</div>
+        <div className="mb-1.5 text-xs text-neutral-500">
+          On-chain audit trail ({reg?.auditTrail.length ?? 0}) · click a row to expand
+        </div>
         {reg && reg.auditTrail.length > 0 ? (
           <div className="space-y-2">
             {reg.auditTrail.map((a, i) => (
-              <div key={i} className="rounded-lg border border-neutral-200 bg-white p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-1.5 font-semibold text-neutral-900">
-                    {a.supplier}
-                    {a.humanApproved && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200">
-                        ⤴ human-approved
-                      </span>
-                    )}
-                  </span>
-                  <span className="font-mono text-neutral-900">${money(a.amount)}</span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-1">
-                  {a.checks.map((c) => (
-                    <span
-                      key={c.label}
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${c.pass ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-red-50 text-red-700 ring-1 ring-red-200"}`}
-                    >
-                      {c.pass ? "✓" : "✗"} {c.label}
-                    </span>
-                  ))}
-                </div>
-                <p className="mt-2 text-[11px] text-neutral-500">
-                  <span className="italic">&ldquo;{a.agentNote}&rdquo;</span>{" "}
-                  <span className="text-neutral-400">— agent note (advisory)</span>
-                </p>
-              </div>
+              <AuditRow key={i} a={a} />
             ))}
           </div>
         ) : (
@@ -407,6 +524,27 @@ export default function Home() {
       </p>
     </Card>
   );
+
+  // Privacy-aware: only the treasurer/agent/cockpit views may see live budget.
+  const showBudget = session === "treasurer" || session === "agent" || session === "cockpit";
+
+  let sidebar: ReactNode = null;
+  if (session) {
+    const meta = SESSION_META[session];
+    const Icon = meta.icon;
+    sidebar = (
+      <Sidebar
+        roleLabel={meta.label}
+        roleIcon={<Icon />}
+        roleChip={meta.chip}
+        connected={connected}
+        mandate={mandate}
+        showBudget={showBudget}
+        pendingCount={pendingApprovals.length}
+        onLogout={() => setSession(null)}
+      />
+    );
+  }
 
   let identityBar: ReactNode = null;
   if (session) {
@@ -501,38 +639,51 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          <>
-            {identityBar}
+          <div className="flex gap-6">
+            {sidebar}
+            <div className="min-w-0 flex-1">
+              <div className="lg:hidden">{identityBar}</div>
+              <FlightBanner flight={flight} />
 
-            {session === "cockpit" ? (
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-                  {treasurerCard}
-                  {agentCard}
-                  {supplierCard}
-                  {regulatorCard}
+              {session === "cockpit" ? (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+                    {treasurerCard}
+                    {agentCard}
+                    {supplierCard}
+                    {regulatorCard}
+                  </div>
+                  <SpendAnalytics
+                    trail={reg?.auditTrail ?? []}
+                    perTxCap={mandate ? Number(mandate.perTxCap) : 0}
+                    remainingBudget={mandate ? Number(mandate.remainingBudget) : 0}
+                  />
                 </div>
-                <SpendAnalytics
-                  trail={reg?.auditTrail ?? []}
-                  perTxCap={mandate ? Number(mandate.perTxCap) : 0}
-                  remainingBudget={mandate ? Number(mandate.remainingBudget) : 0}
-                />
-              </div>
-            ) : (
-              <div className="mx-auto max-w-xl">
-                <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs leading-relaxed text-neutral-500">
-                  {sessionNote[session as Exclude<Role, "cockpit">]}
+              ) : (
+                <div className="mx-auto max-w-xl">
+                  <div className="mb-3 rounded-lg border border-neutral-200 bg-white px-4 py-2.5 text-xs leading-relaxed text-neutral-500">
+                    {sessionNote[session as Exclude<Role, "cockpit">]}
+                  </div>
+                  {session === "treasurer"
+                    ? treasurerCard
+                    : session === "agent"
+                      ? agentCard
+                      : session === "supplier"
+                        ? supplierCard
+                        : regulatorCard}
+                  {session === "agent" && (
+                    <div className="mt-5">
+                      <SpendAnalytics
+                        trail={reg?.auditTrail ?? []}
+                        perTxCap={mandate ? Number(mandate.perTxCap) : 0}
+                        remainingBudget={mandate ? Number(mandate.remainingBudget) : 0}
+                      />
+                    </div>
+                  )}
                 </div>
-                {session === "treasurer"
-                  ? treasurerCard
-                  : session === "agent"
-                    ? agentCard
-                    : session === "supplier"
-                      ? supplierCard
-                      : regulatorCard}
-              </div>
-            )}
-          </>
+              )}
+            </div>
+          </div>
         )}
 
         <footer className="mt-8 text-center text-[11px] text-neutral-400">

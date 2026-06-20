@@ -6,6 +6,15 @@ import crypto from "node:crypto";
 const JSON_API = (process.env.JSON_API_URL ?? "http://localhost:7575").replace(/\/+$/, "");
 const SECRET = process.env.LEDGER_SECRET ?? "secret";
 const LEDGER_ID = process.env.LEDGER_ID ?? "sandbox";
+
+// Fail fast in production if the dev signing secret was never overridden — the
+// literal "secret" default lets anyone forge an admin token (mintToken admin:true).
+// The localhost demo keeps the convenient default; only production refuses to boot.
+if (process.env.NODE_ENV === "production" && (!process.env.LEDGER_SECRET || SECRET === "secret")) {
+  throw new Error(
+    "LEDGER_SECRET must be set to a strong value in production (the default 'secret' allows token forgery).",
+  );
+}
 const APP = process.env.APPLICATION_ID ?? "mandaterail";
 const PKG = process.env.DAML_PACKAGE_ID ?? "";
 
@@ -16,6 +25,7 @@ export const TID = {
   po: `${PKG}:MandateRail.Purchase:PurchaseOrder`,
   iou: `${PKG}:MandateRail.Cash:Iou`,
   audit: `${PKG}:MandateRail.Audit:AuditRecord`,
+  revocation: `${PKG}:MandateRail.Audit:RevocationRecord`,
   charter: `${PKG}:MandateRail.Charter:TreasuryCharter`,
   approval: `${PKG}:MandateRail.Approval:ApprovalRequest`,
 };
