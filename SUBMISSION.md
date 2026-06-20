@@ -8,7 +8,7 @@
 |---|---|
 | **Repository** | https://github.com/EzraNahumury/MandateRail |
 | **Live demo** | **https://mandate-rail.vercel.app** — open [`/demo?role=cockpit`](https://mandate-rail.vercel.app/demo?role=cockpit). Read-only UI on a **captured real ledger snapshot**; the full interactive ledger runs locally per the walkthrough below. |
-| **Video (3 min)** | _TBD — add link before submission_ |
+| **Video (3 min)** | https://youtu.be/S1WG7tDw3Z8 |
 | **Deck** | [Presentation deck (PDF)](https://drive.google.com/file/d/1jDnMEZr1rQf_xshU0BuoAaZihfJmbrXp/view?usp=sharing) · source [`PITCH_DECK.md`](PITCH_DECK.md) |
 | **Event** | Build on Canton Hackathon — Canton Foundation, June 2026 |
 | **Track** | 3 — Payments, Neobanking & Agentic Commerce (touches Track 1 privacy) |

@@ -13,6 +13,8 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green)](#license)
 [![Track: Payments, Neobanking & Agentic Commerce](https://img.shields.io/badge/Track-Agentic%20Commerce-purple)](#hackathon-context)
 [![Judges: read SUBMISSION.md](https://img.shields.io/badge/Judges-read%20SUBMISSION.md-E63946)](SUBMISSION.md)
+[![Watch the 3-min demo](https://img.shields.io/badge/▶%20Watch-3--min%20demo-FF0000)](https://youtu.be/S1WG7tDw3Z8)
+[![Live demo](https://img.shields.io/badge/Live-mandate--rail.vercel.app-00C7B7)](https://mandate-rail.vercel.app/demo?role=cockpit)
 [![Pitch Deck (PDF)](https://img.shields.io/badge/Pitch%20Deck-PDF-FF6F61)](https://drive.google.com/file/d/1jDnMEZr1rQf_xshU0BuoAaZihfJmbrXp/view?usp=sharing)
 
 ---
@@ -80,7 +82,7 @@ MandateRail is the deliberate **inversion** of the "AI wrapper" trope the track 
 
 ## Screenshots & Demo
 
-> 📹 **3-minute video pitch + demo:** _add link before submission_
+> 📹 **3-minute video pitch + demo:** **https://youtu.be/S1WG7tDw3Z8**
 > 🖥️ **Live product:** **https://mandate-rail.vercel.app** — open [`/demo?role=cockpit`](https://mandate-rail.vercel.app/demo?role=cockpit) (read-only snapshot of real ledger output). Full interactive ledger runs locally — see [Getting Started](#getting-started).
 
 **Landing**
@@ -959,7 +961,7 @@ We are explicit about what is real vs. mocked — this credibility is itself a j
 ## Submission Artifacts
 
 - ✅ **Public repository:** https://github.com/EzraNahumury/MandateRail
-- ⏳ **3-minute video pitch + demo:** _add link before submission_
+- ✅ **3-minute video pitch + demo:** **https://youtu.be/S1WG7tDw3Z8**
 - ✅ **Live product:** **https://mandate-rail.vercel.app** (read-only snapshot) · full interactive ledger runs locally
 - ✅ **Presentation deck:** [PDF on Google Drive](https://drive.google.com/file/d/1jDnMEZr1rQf_xshU0BuoAaZihfJmbrXp/view?usp=sharing) · source `PITCH_DECK.md`
 
@@ -967,7 +969,7 @@ We are explicit about what is real vs. mocked — this credibility is itself a j
 > - [x] Apache 2.0 `LICENSE`
 > - [x] Screenshots into `docs/diagrams/` (landing, cockpit, sign-in)
 > - [x] `daml test` passes (25/25) and the app runs on a fresh `daml start` + `npm run dev`
-> - [ ] Record + link the 3-minute video (lead with the two money-shots)
+> - [x] 3-minute video recorded + linked: https://youtu.be/S1WG7tDw3Z8
 > - [x] Live URL deployed: https://mandate-rail.vercel.app (read-only snapshot mode)
 > - [x] Presentation deck: [PDF on Google Drive](https://drive.google.com/file/d/1jDnMEZr1rQf_xshU0BuoAaZihfJmbrXp/view?usp=sharing)
 > - [x] Team names + contact filled in below
