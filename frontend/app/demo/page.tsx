@@ -24,6 +24,18 @@ type Role = "cockpit" | "treasurer" | "agent" | "supplier" | "supplier-b" | "sup
 // Which SupplierView a supplier session maps to.
 const SUPPLIER_KEY: Record<string, string> = { supplier: "a", "supplier-b": "b", "supplier-c": "c" };
 
+// Autopilot step captions (the run-functions live in the component).
+const DEMO_CAPTIONS = [
+  "Treasurer issues the spend mandate",
+  "Agent commits the cheapest compliant quote",
+  "Ledger REJECTS an over-cap buy",
+  "Ledger REJECTS an off-allow-list supplier",
+  "Agent escalates an over-cap need",
+  "Treasurer approves — human-in-the-loop",
+  "Treasurer revokes — the agent goes powerless",
+];
+const DEMO_STEP_COUNT = DEMO_CAPTIONS.length;
+
 /* ---------- sign-in icons ---------- */
 const svg = (children: ReactNode) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
@@ -136,8 +148,12 @@ export default function Home() {
   const [log, setLog] = useState<LogEntry[]>([]);
   const [session, setSession] = useState<Role | null>(null);
   const [flight, setFlight] = useState<Flight | null>(null);
+  const [auto, setAuto] = useState(false);
+  const [autoStep, setAutoStep] = useState(0);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const logId = useRef(0);
   const flightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abortRef = useRef(false);
 
   const addLog = useCallback((kind: LogKind, text: string) => {
     const time = new Date().toLocaleTimeString("en-US", { hour12: false });
@@ -163,6 +179,8 @@ export default function Home() {
       setBudgetMax((m) => Math.max(m, rem));
     } catch {
       setConnected(false);
+    } finally {
+      setHasLoaded(true);
     }
   }, []);
 
@@ -180,12 +198,14 @@ export default function Home() {
       setBusy(true);
       try {
         await fn();
+      } catch {
+        showFlight({ phase: "error", label: "Cannot reach the ledger", detail: "Is the backend (daml start) running?" });
       } finally {
         setBusy(false);
         refresh();
       }
     },
-    [refresh],
+    [refresh, showFlight],
   );
 
   const onIssue = () =>
@@ -279,6 +299,40 @@ export default function Home() {
       }
     });
 
+  // --- Autopilot: one click drives the REAL handlers through the whole story.
+  // Every beat hits the live BFF/ledger (no mock) and self-narrates via the
+  // FlightBanner + activity log. Perfect for a cold judge or a single-take video.
+  const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+  const stopDemo = () => {
+    abortRef.current = true;
+  };
+  const runDemo = async () => {
+    if (auto) return;
+    abortRef.current = false;
+    setAuto(true);
+    const steps: Array<() => Promise<unknown>> = [
+      () => onIssue(),
+      () => onCommit("cheapest"),
+      () => onCommit("overcap"),
+      () => onCommit("offlist"),
+      () => onEscalate(),
+      () => onApprove(),
+      () => onRevoke(),
+    ];
+    try {
+      for (let i = 0; i < steps.length; i++) {
+        if (abortRef.current) break;
+        setAutoStep(i + 1);
+        await steps[i]();
+        await sleep(1400);
+      }
+    } finally {
+      setAuto(false);
+      setAutoStep(0);
+      abortRef.current = false;
+    }
+  };
+
   const mandate = snap?.treasurer.mandate ?? null;
   const charter = snap?.treasurer.charter ?? null;
   const pendingApprovals = snap?.treasurer.pendingApprovals ?? [];
@@ -369,10 +423,10 @@ export default function Home() {
               </div>
               <p className="mt-1 text-[11px] italic leading-snug text-neutral-500">&ldquo;{p.reason}&rdquo;</p>
               <div className="mt-2 flex gap-2">
-                <Button variant="primary" onClick={onApprove} disabled={busy}>
+                <Button variant="primary" onClick={onApprove} disabled={busy || auto}>
                   Approve over-cap
                 </Button>
-                <Button variant="ghost" onClick={onReject} disabled={busy}>
+                <Button variant="ghost" onClick={onReject} disabled={busy || auto}>
                   Reject
                 </Button>
               </div>
@@ -382,10 +436,10 @@ export default function Home() {
       )}
 
       <div className="mt-auto flex gap-2 pt-2">
-        <Button variant="ghost" onClick={onIssue} disabled={busy}>
+        <Button variant="ghost" onClick={onIssue} disabled={busy || auto}>
           {mandate ? "Reset mandate" : "Issue mandate"}
         </Button>
-        <Button variant="danger" onClick={onRevoke} disabled={busy || !mandate}>
+        <Button variant="danger" onClick={onRevoke} disabled={busy || auto || !mandate}>
           Revoke
         </Button>
       </div>
@@ -416,20 +470,20 @@ export default function Home() {
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <Button variant="primary" onClick={() => onCommit("cheapest")} disabled={busy || !mandate}>
+        <Button variant="primary" onClick={() => onCommit("cheapest")} disabled={busy || auto || !mandate}>
           Commit cheapest
         </Button>
-        <Button variant="warn" onClick={() => onCommit("overcap")} disabled={busy || !mandate}>
+        <Button variant="warn" onClick={() => onCommit("overcap")} disabled={busy || auto || !mandate}>
           Try over-cap
         </Button>
-        <Button variant="danger" onClick={() => onCommit("offlist")} disabled={busy || !mandate}>
+        <Button variant="danger" onClick={() => onCommit("offlist")} disabled={busy || auto || !mandate}>
           Try off-list
         </Button>
       </div>
 
       <button
         onClick={onEscalate}
-        disabled={busy || !mandate}
+        disabled={busy || auto || !mandate}
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:border-amber-500 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         ⤴ Escalate over-cap → request human approval
@@ -564,6 +618,15 @@ export default function Home() {
         )}
       </div>
 
+      {reg && reg.auditTrail.length > 0 && (
+        <a
+          href="/api/audit/export"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 transition hover:border-neutral-900 hover:bg-neutral-50"
+        >
+          ⬇ Download audit statement (CSV)
+        </a>
+      )}
+
       <p className="text-[10px] leading-relaxed text-neutral-400">
         Ledger verdict = authority · agent note = advisory · live Canton query, not mocked.
       </p>
@@ -628,8 +691,12 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4 text-xs">
             <span className="inline-flex items-center gap-1.5">
-              <span className={`h-2 w-2 rounded-full ${connected ? "animate-pulse bg-emerald-500" : "bg-red-500"}`} />
-              <span className={connected ? "text-emerald-600" : "text-red-600"}>{connected ? "ledger live" : "disconnected"}</span>
+              <span
+                className={`h-2 w-2 rounded-full ${!hasLoaded ? "animate-pulse bg-amber-400" : connected ? "animate-pulse bg-emerald-500" : "bg-red-500"}`}
+              />
+              <span className={!hasLoaded ? "text-amber-600" : connected ? "text-emerald-600" : "text-red-600"}>
+                {!hasLoaded ? "connecting…" : connected ? "ledger live" : "disconnected"}
+              </span>
             </span>
             <Link href="/" className="text-neutral-500 transition hover:text-neutral-900">← Home</Link>
           </div>
@@ -692,6 +759,43 @@ export default function Home() {
 
               {session === "cockpit" ? (
                 <div className="space-y-5">
+                  {/* Autopilot — one click runs the whole money-shot story, live on the ledger */}
+                  <div className="flex flex-col gap-3 rounded-2xl border border-neutral-900 bg-neutral-900 p-4 text-white shadow-sm sm:flex-row sm:items-center">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold">
+                        {auto ? `Running… step ${autoStep}/${DEMO_STEP_COUNT}` : "Guided demo"}
+                      </div>
+                      <div className="truncate text-xs text-neutral-300">
+                        {auto && autoStep > 0
+                          ? DEMO_CAPTIONS[autoStep - 1]
+                          : "Issue → commit → ledger rejects over-cap & off-list → escalate → approve → revoke. ~10s, all live."}
+                      </div>
+                      {auto && (
+                        <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/15">
+                          <div
+                            className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+                            style={{ width: `${(autoStep / DEMO_STEP_COUNT) * 100}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {auto ? (
+                      <button
+                        onClick={stopDemo}
+                        className="rounded-lg bg-white/10 px-4 py-2 text-xs font-semibold text-white ring-1 ring-white/20 transition hover:bg-white/20"
+                      >
+                        Stop
+                      </button>
+                    ) : (
+                      <button
+                        onClick={runDemo}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-400"
+                      >
+                        ▶ Play full demo
+                      </button>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
                     {treasurerCard}
                     {agentCard}

@@ -9,7 +9,7 @@
 | **Repository** | https://github.com/EzraNahumury/MandateRail |
 | **Live demo** | _TBD — public deploy + URL before submission_ |
 | **Video (3 min)** | _TBD — add link before submission_ |
-| **Deck** | [`docs/deck.pdf`](docs/deck.pdf) |
+| **Deck** | [`PITCH_DECK.md`](PITCH_DECK.md) — PDF export pending |
 | **Event** | Build on Canton Hackathon — Canton Foundation, June 2026 |
 | **Track** | 3 — Payments, Neobanking & Agentic Commerce (touches Track 1 privacy) |
 
@@ -58,6 +58,7 @@ Authority flows **down**; each layer can only tighten the one above it.
 - **`allowAutoCommit` capability dial** — a mandate can be minted *escalate-only*.
 - **`DryRunCommit`** — a nonconsuming pre-flight returning the **ledger's own verdicts** before committing.
 - **Selective disclosure** — a real regulator party observes `PurchaseOrder` + `AuditRecord` + `RevocationRecord`, but **never** the `SpendMandate` cap/budget or the sealed quotes.
+- **Real LLM, ledger-gated** — a genuine **Ollama Cloud** (`gpt-oss:120b`) call chooses among the *already-compliant* quotes and writes an on-chain rationale; its output is whitelist-validated and the ledger **still** re-checks every rule. A hallucinated or jailbroken pick is rejected by a Daml precondition — the model advises, the ledger decides. (Runs deterministically with no key.)
 - **Adversarial-proven** — a prompt-injection string in `agentNote` rides an over-cap `Commit` and is still **inert**: the ledger rejects it regardless.
 
 ---
@@ -83,19 +84,32 @@ Both load-bearing Canton capabilities are **required** — remove either and the
 
 ---
 
+## Mapping to the judging criteria
+
+| Criterion | Where MandateRail earns it |
+|---|---|
+| **Technical execution** | 9 Daml templates; **21 ledger tests** incl. an adversarial suite; clean BFF + typed UI; green production build + CI. Enforcement lives in the contract, proven by `submitMustFail`. |
+| **Originality** | "Trust the ledger, not the model" — a real LLM whose every hallucination is *provably rejected* by the ledger; sealed-bid RFQ + selective disclosure to a regulator. |
+| **User experience & design** | One-click **▶ Play full demo** autopilot, live budget gauge, the red "REJECTED BY THE LEDGER" money-shot, per-party sign-in, and the supplier **"Mandate & budget: NOT VISIBLE"** privacy proof — all live, no mock data. |
+| **Real-world applicability** | A genuine treasury problem (agentic procurement) with CEO+CFO charter governance, instant revoke, and a downloadable on-chain **audit statement** an auditor could actually use. |
+
+---
+
 ## Tech stack
 
 - **Smart contracts:** Daml SDK **2.10.4** (Canton sandbox) — 9 templates: `TreasuryCharter`, `SpendMandate`, `RfqQuote`, `PurchaseOrder`, `Iou`, `ApprovalRequest`, `AuditRecord`, `RevocationRecord` (+ `CommitResult` / verdict data types).
 - **Tests:** **21 Daml Script tests, all passing** — happy path, over-cap/over-budget/off-allow-list/expiry rejects, sealed-bid privacy, concurrent-commit race, audited revoke, regulator selective disclosure, charter tighten-only & revoke cascade, escalation approve/reject, plus an adversarial suite (`testPromptInjectionInAgentNoteIsInert`, `testForgedAmountRejected`, `testAgentCannotSelfApprove`, `testNoAutoCommitMandate`, `testIssuanceInvariant`, `testRevocationAudited`, `testDryRunVerdicts`).
 - **Frontend:** **Next.js 16 + React 19 + Tailwind v4** backend-for-frontend — route handlers proxy the Daml JSON Ledger API; per-party JWTs minted server-side via `node:crypto`.
-- **Agent:** **TypeScript** scripted buyer agent (thin, zero enforcement authority).
+- **Agent:** **TypeScript** buyer agent with a real **Ollama Cloud** (`gpt-oss:120b`) reasoning step — thin by design, **zero enforcement authority** (the ledger gates every decision; deterministic fallback when no LLM key).
 - **UI:** light-theme landing page (`/`) + cockpit (`/demo`) with per-party sign-in and four live panels (Treasurer, Buyer Agent, Supplier A, Regulator/Auditor) + a live spend-analytics strip (budget burndown, per-tx-vs-cap bars, commit timeline) — all derived live from the on-chain audit trail, no mock data.
 
 ---
 
 ## Self-serve demo walkthrough (reproduce without the video)
 
-Start the ledger (`daml start`) and the UI (`cd frontend && npm run dev` → `http://localhost:3000`); open `/demo` and sign in per-party.
+Start the ledger (`daml start`) and the UI (`cd frontend && npm run dev` → `http://localhost:3000`); open `/demo`.
+
+> **Fastest path:** choose **View all parties · cockpit** and click **▶ Play full demo** — an autopilot drives the entire story below (issue → commit → over-cap & off-list rejections → escalate → approve → revoke) in ~10 seconds, every beat live on the ledger. The manual walkthrough:
 
 1. **Issue the mandate.** As **Treasurer**, issue a `SpendMandate` to BuyerAgent: cloud-compute, **$50,000** cumulative, **$10,000/tx**, suppliers **A/B/C**, 30-day expiry. The agent gauge reads **$0 / $50,000**. *(These are not app settings — they are enforced inside the Daml contract.)*
 2. **Sealed RFQ.** As **Buyer Agent**, open the RFQ; A/B/C each submit a private `RfqQuote`. Flip to Supplier A and B: **A cannot see B's price; no supplier can see the cap.**

@@ -68,6 +68,14 @@ Enterprises want AI agents to buy routine inputs autonomously (cloud, freight, a
 
 MandateRail is the deliberate **inversion** of the "AI wrapper" trope the track warns against: the agent is intentionally powerless, and Canton — not the model — is the enforcement layer.
 
+**Themes spanned (a project may span tracks — this one genuinely does):**
+
+| Brief theme (verbatim) | How MandateRail hits it |
+|---|---|
+| Track 3 — *"believable use of agents"* / *"treasury / business banking workflows"* | A real LLM buyer agent under a treasury-issued, ledger-enforced spend mandate |
+| Track 1/2 — *"B2B marketplace with blind auctions"* | Sealed-bid RFQ: rivals are never observers, so no supplier sees another's price or the cap |
+| Track 1 — *"Private DeFi / OTC… where pricing, counterparties or positions shouldn't be public"* | Confidential atomic DvP settlement with selective disclosure to a regulator |
+
 ---
 
 ## Screenshots & Demo
@@ -81,7 +89,7 @@ MandateRail is the deliberate **inversion** of the "AI wrapper" trope the track 
 
 **The cockpit — Treasurer · Buyer Agent · Supplier, live on a Canton sandbox**
 
-![Three-panel cockpit with live ledger data](docs/diagrams/demo-cockpit.png)
+![Four-panel cockpit with live ledger data](docs/diagrams/demo-cockpit.png)
 
 The Supplier panel proves the privacy claim *live*: **Mandate & budget: NOT VISIBLE** — the cap never reaches the supplier's node. In the Buyer Agent panel, **Commit cheapest** settles atomically while **Try over-cap** / **Try off-list** are rejected by the ledger (a real Daml precondition failure, not app code).
 
@@ -639,10 +647,10 @@ flowchart TB
 | **Integration** | **Daml Ledger API** — JSON API + gRPC, streaming | Live, party-scoped reads that drive the UI; the agent's action surface |
 | **Codegen / types** | `@daml/types`, `@daml/ledger`, `@daml/react`, Daml TS codegen | Type-safe contract bindings in TypeScript |
 | **Agent** | **TypeScript** (Node) — thin scripted loop | Security lives in the ledger; agent is intentionally minimal |
-| **Agent reasoning (optional)** | **Ollama Cloud** (`gpt-oss:120b-cloud`) — *chooses among ledger-compliant quotes, whitelist-validated, zero enforcement authority* | Demonstrates real agentic reasoning without making the LLM a trust anchor |
+| **Agent reasoning (real LLM)** | **Ollama Cloud** (`gpt-oss:120b-cloud`) — *chooses among ledger-compliant quotes, whitelist-validated, zero enforcement authority* | Demonstrates real agentic reasoning without making the LLM a trust anchor |
 | **Frontend** | **React + Vite + TypeScript**, Tailwind CSS, `@daml/react` | Three party-scoped panels with live streaming state |
 | **Identity** | JWT party tokens (Canton sandbox auth) | Scopes each UI/agent to a single Daml party |
-| **Testing** | **Daml Script** (ledger tests) + Vitest (TS) | Proves policy enforcement & atomicity deterministically |
+| **Testing** | **Daml Script** — 21 ledger tests incl. an adversarial suite (prompt-injection-inert, forged-amount, self-approval) | Proves policy enforcement & atomicity deterministically |
 | **Dev tooling** | Daml SDK, Daml Studio (VS Code), pnpm | Standard Canton developer workflow |
 | **Hosting (live link)** | Vercel / Netlify (UI) + hosted Canton sandbox/devnet | Satisfies the "link to live product" submission requirement — free tier |
 
@@ -683,7 +691,8 @@ mandaterail/
 │   │   │   └── issue/route.ts     # reset: archive all + re-seed
 │   │   ├── lib/                   # server JSON-API client + HS256 token mint
 │   │   ├── components/ui.tsx
-│   │   └── page.tsx               # 3-panel dashboard (Treasurer/Agent/Supplier)
+│   │   ├── page.tsx               # premium landing page
+│   │   └── demo/page.tsx          # 4-panel cockpit (Treasurer/Agent/Supplier/Regulator) + autopilot
 │   └── .env.local                # JSON_API_URL + DAML_PACKAGE_ID (gitignored)
 ├── docs/
 │   ├── diagrams/                  # architecture, sequence, privacy, screenshots
@@ -699,7 +708,7 @@ mandaterail/
 ## Getting Started
 
 ### Prerequisites
-- [Daml SDK](https://docs.daml.com/getting-started/installation.html) (latest)
+- [Daml SDK **2.10.4**](https://docs.daml.com/getting-started/installation.html)
 - Node.js >= 18 and `pnpm`
 - (Optional) `OLLAMA_KEY` (+ `OLLAMA_HOST`/`OLLAMA_MODEL`) for the live model-reasoning demo via Ollama Cloud
 
@@ -959,7 +968,7 @@ We are explicit about what is real vs. mocked — this credibility is itself a j
 
 ## Team & Acknowledgements
 
-**Team:** _TODO — names / roles / contact (GitHub, email)_
+**Team:** Ezra Nahumury — solo build · GitHub [@EzraNahumury](https://github.com/EzraNahumury) · ezranhmry@gmail.com
 
 **Acknowledgements:**
 - [Canton Foundation](https://canton.foundation/) — for the hackathon and the privacy-enabled L1.

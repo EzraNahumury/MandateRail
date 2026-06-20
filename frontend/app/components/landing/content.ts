@@ -25,9 +25,9 @@ export const hero = {
   primaryCta: { label: "Launch the demo", href: project.demoHref },
   secondaryCta: { label: "Read the docs", href: project.repo },
   stats: [
-    { value: "8 / 8", label: "Daml tests passing" },
+    { value: "21", label: "Daml tests passing" },
     { value: "1-tx", label: "atomic DvP settlement" },
-    { value: "3-party", label: "need-to-know privacy" },
+    { value: "4-party", label: "need-to-know privacy" },
     { value: "$0", label: "cost to run" },
   ],
 };
@@ -143,7 +143,7 @@ export const explore = {
     },
     {
       key: "Agent",
-      body: "The agent is a deliberately thin, replaceable loop with zero enforcement authority. Swap it for any LLM and the ledger guarantees are unchanged — the inversion of the 'AI wrapper'.",
+      body: "A real LLM (Ollama Cloud, gpt-oss:120b) reasons over the compliant quotes and writes an on-chain rationale — but the ledger STILL gates its output. A hallucinated or jailbroken pick is rejected by a Daml precondition, not trusted. The model advises; the ledger decides.",
     },
     {
       key: "Docs",
