@@ -1,8 +1,16 @@
 module MandateRail.Purchase where
 
--- | The binding commitment AND the supplier's "Authorized + Funded"
--- need-to-know slice. It deliberately contains NOTHING about the mandate
--- cap or remaining budget — only the agreed line item.
+import MandateRail.Cash
+
+-- | The binding commitment AND the supplier's need-to-know slice. It deliberately
+-- contains NOTHING about the mandate cap or remaining budget — only the agreed
+-- line item, its lifecycle status, and a handle to the escrowed payment.
+--
+-- DvP lifecycle: a PurchaseOrder is born `FUNDED_PENDING_DELIVERY` — the buyer's
+-- cash is already locked in escrow (so the supplier is assured of payment), but
+-- the supplier is NOT paid yet. On `ConfirmReceipt` the escrow releases to the
+-- supplier and the status flips to `SETTLED`. This is the leg that makes the
+-- "no paid-but-undelivered state" guarantee real, not aspirational.
 template PurchaseOrder
   with
     agent     : Party
@@ -10,7 +18,18 @@ template PurchaseOrder
     regulator : Party
     category  : Text
     amount    : Decimal
-    status    : Text
+    status    : Text                 -- "FUNDED_PENDING_DELIVERY" | "SETTLED"
+    escrow    : ContractId Iou       -- bank-held escrowed payment, released on receipt
   where
     signatory agent, supplier
     observer regulator
+
+    -- The buyer confirms the goods/services were received → release the escrow
+    -- to the supplier and mark the order SETTLED. Delivery-versus-payment: the
+    -- supplier is paid only now.
+    choice ConfirmReceipt : (ContractId PurchaseOrder, ContractId Iou)
+      controller agent
+      do
+        paidCash <- exercise escrow Release with recipient = supplier
+        settled  <- create this with status = "SETTLED"
+        pure (settled, paidCash)

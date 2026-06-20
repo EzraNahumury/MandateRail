@@ -25,8 +25,8 @@ export const hero = {
   primaryCta: { label: "Launch the demo", href: project.demoHref },
   secondaryCta: { label: "Read the docs", href: project.repo },
   stats: [
-    { value: "21", label: "Daml tests passing" },
-    { value: "1-tx", label: "atomic DvP settlement" },
+    { value: "25", label: "Daml tests passing" },
+    { value: "DvP", label: "escrow until delivery" },
     { value: "4-party", label: "need-to-know privacy" },
     { value: "$0", label: "cost to run" },
   ],
@@ -139,7 +139,7 @@ export const explore = {
     },
     {
       key: "Settlement",
-      body: "On award, a single atomic transaction debits the mandate, creates a binding purchase order, and settles tokenized cash (DvP). All four effects commit together, or nothing does.",
+      body: "On award, one atomic transaction debits the mandate, mints the purchase order, and LOCKS the payment in bank-held escrow — the supplier is assured of funds but not yet paid. The escrow releases to the supplier only when the buyer confirms receipt. True delivery-versus-payment: no paid-but-undelivered state is reachable.",
     },
     {
       key: "Agent",

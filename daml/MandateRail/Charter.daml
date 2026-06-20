@@ -2,6 +2,35 @@ module MandateRail.Charter where
 
 import MandateRail.Mandate
 
+-- | The governance moment made visible. Instead of the CEO and CFO co-signing
+-- a charter in one atomic act (which hides WHO authorized what), the CEO first
+-- PROPOSES the ceilings; the charter only exists once the CFO independently
+-- ACCEPTS. This is the real "why a CFO signs off" step — a two-party agreement,
+-- on-ledger and non-repudiable.
+template CharterProposal
+  with
+    ceo             : Party
+    cfo             : Party
+    treasurer       : Party
+    regulator       : Party
+    ceilingPerTxCap : Decimal
+    ceilingBudget   : Decimal
+  where
+    signatory ceo
+    observer cfo, treasurer, regulator
+
+    ensure ceilingPerTxCap > 0.0 && ceilingBudget > 0.0
+
+    choice AcceptByCfo : ContractId TreasuryCharter
+      controller cfo
+      do
+        create TreasuryCharter with
+          ceo, cfo, treasurer, regulator, ceilingPerTxCap, ceilingBudget
+
+    choice RejectByCfo : ()
+      controller cfo
+      do pure ()
+
 -- | The top authority layer. A TreasuryCharter is signed by BOTH the CEO and the
 -- CFO (real multi-sig) and sets absolute ceilings. A treasurer can mint an
 -- operational SpendMandate from it, but only one that TIGHTENS the ceilings —

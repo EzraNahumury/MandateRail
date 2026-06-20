@@ -468,10 +468,11 @@ template RfqQuote
           supplier
           category
           amount   = price
-          status   = "AUTHORIZED_FUNDED"
+          status   = "FUNDED_PENDING_DELIVERY"   -- funded into escrow, not yet paid
+          escrow                                  -- handle to the bank-held escrowed payment
 ```
 
-### 3. `PurchaseOrder` — the binding commitment (the supplier's `Authorized + Funded` slice)
+### 3. `PurchaseOrder` — the binding commitment + the DvP delivery leg
 
 ```haskell
 template PurchaseOrder
@@ -480,10 +481,13 @@ template PurchaseOrder
     supplier : Party
     category : Text
     amount   : Decimal
-    status   : Text             -- "AUTHORIZED_FUNDED"
+    status   : Text             -- "FUNDED_PENDING_DELIVERY" | "SETTLED"
+    escrow   : ContractId Iou   -- bank-held escrowed payment, released on receipt
   where
     signatory agent, supplier   -- the supplier's need-to-know slice: proves authority + funding,
                                 -- contains NOTHING about the cap or remaining budget
+    -- ConfirmReceipt (controller agent) releases the escrow to the supplier and
+    -- flips status to SETTLED — the supplier is paid only on confirmed delivery.
 ```
 
 ### 4. `Iou` — tokenized-cash stub (DvP leg)
@@ -633,7 +637,7 @@ flowchart TB
     TX -. cap never leaves need-to-know .-> SA
 ```
 
-**The atomic guarantee:** preconditions pass → all four effects commit together. Any precondition fails (or the cash leg is underfunded) → the **entire** transaction aborts and nothing changes. The agent can never reach a half-spent or paid-but-undelivered state.
+**The atomic guarantee:** preconditions pass → mandate debit + funded `PurchaseOrder` + escrow lock + `AuditRecord` commit together. Any precondition fails (or the cash leg is underfunded) → the **entire** transaction aborts and nothing changes. And because the payment is **locked in escrow** at `Commit` and released to the supplier only on `ConfirmReceipt`, the agent can never reach a half-spent **or paid-but-undelivered** state — that "no paid-but-undelivered" claim is now tested (`testDeliveryReleasesPayment`), not aspirational.
 
 ---
 
@@ -650,7 +654,7 @@ flowchart TB
 | **Agent reasoning (real LLM)** | **Ollama Cloud** (`gpt-oss:120b-cloud`) — *chooses among ledger-compliant quotes, whitelist-validated, zero enforcement authority* | Demonstrates real agentic reasoning without making the LLM a trust anchor |
 | **Frontend** | **React + Vite + TypeScript**, Tailwind CSS, `@daml/react` | Three party-scoped panels with live streaming state |
 | **Identity** | JWT party tokens (Canton sandbox auth) | Scopes each UI/agent to a single Daml party |
-| **Testing** | **Daml Script** — 21 ledger tests incl. an adversarial suite (prompt-injection-inert, forged-amount, self-approval) | Proves policy enforcement & atomicity deterministically |
+| **Testing** | **Daml Script** — 25 ledger tests incl. an adversarial suite (prompt-injection-inert, forged-amount, self-approval) + DvP-delivery + governance | Proves policy enforcement & atomicity deterministically |
 | **Dev tooling** | Daml SDK, Daml Studio (VS Code), pnpm | Standard Canton developer workflow |
 | **Hosting (live link)** | Vercel / Netlify (UI) + hosted Canton sandbox/devnet | Satisfies the "link to live product" submission requirement — free tier |
 
@@ -672,7 +676,7 @@ mandaterail/
 │   ├── Approval.daml              # ApprovalRequest (human-in-the-loop over-cap escalation)
 │   ├── Audit.daml                 # AuditRecord + RevocationRecord (immutable, regulator-observable)
 │   ├── Bootstrap.daml             # Daml Script: parties + balances (init-script)
-│   └── Tests.daml                 # Daml Script: 21 tests (caps, allow-list, race, revoke, charter, escalation, adversarial suite)
+│   └── Tests.daml                 # Daml Script: 25 tests (caps, allow-list, race, revoke, charter, escalation, adversarial, DvP-delivery, governance)
 ├── daml.js/                       # generated TS bindings (daml codegen js) - pnpm workspace pkg
 ├── agent/                         # Layer 3 - buyer agent (zero enforcement authority)
 │   ├── src/
@@ -867,12 +871,16 @@ Daml Script tests prove the guarantees deterministically — these double as jud
 | `testIssuanceInvariant` | A charter cannot `MintMandate` an already-impossible mandate whose per-tx cap exceeds its own budget |
 | `testRevocationAudited` | `Revoke` emits an append-only, regulator-visible `RevocationRecord` (who/why) — kills are no longer silent |
 | `testDryRunVerdicts` | The nonconsuming `DryRunCommit` returns the ledger's own verdicts **without** spending; the mandate survives |
+| `testDeliveryReleasesPayment` | After `Commit` the PO is `FUNDED_PENDING_DELIVERY` and the supplier is **not yet paid** (cash escrowed to the bank); only `ConfirmReceipt` releases the escrow → `SETTLED`. True DvP |
+| `testNoBarePurchaseOrder` | The agent alone **cannot** exercise `Accept` (it now requires treasurer authority, in scope only inside a real `Commit`) → no funded PO without a budget debit |
+| `testCharterGovernance` | A charter needs **two** independent signatures: the CEO proposes, only the CFO can `AcceptByCfo`; the CEO cannot self-accept |
+| `testCharterPortfolio` | One chartered authority mints a **portfolio** of mandates across categories (cloud / freight / ad-inventory), each tighter than the ceiling |
 
 ```bash
-daml test          # runs all 21 Daml Script tests
+daml test          # runs all 25 Daml Script tests
 ```
 
-> ✅ **All 21 tests pass on Daml SDK 2.10.4** (`daml build` + `daml test` green).
+> ✅ **All 25 tests pass on Daml SDK 2.10.4** (`daml build` + `daml test` green).
 
 ---
 

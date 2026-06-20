@@ -1,5 +1,7 @@
 module MandateRail.Cash where
 
+import DA.Optional (isNone, isSome, fromSome)
+
 -- | Tokenized-cash stub (an IOU) used as the DvP settlement leg.
 -- The hardened version uses Daml Finance holdings. `Transfer` returns
 -- (payee Iou, optional change Iou) so funds are always conserved.
@@ -7,12 +9,19 @@ module MandateRail.Cash where
 -- `observers` is the explicit-disclosure list: the treasury earmarks a
 -- holding for a mandate by disclosing it to the buyer agent, so the agent
 -- can settle it inside Commit without ever owning or controlling it.
+--
+-- `releaser` makes real DvP possible: when `Some p`, the Iou is ESCROWED —
+-- owned by the bank, frozen against `Transfer`, and movable only by `Release`,
+-- which only party `p` (the buyer side) may call. That is how funds are held
+-- between award and delivery: paid into escrow at Commit, released to the
+-- supplier only when the buyer confirms receipt — never paid-but-undelivered.
 template Iou
   with
     bank      : Party
     owner     : Party
     amount    : Decimal
     observers : [Party]
+    releaser  : Optional Party
   where
     signatory bank
     observer owner, observers
@@ -22,19 +31,52 @@ template Iou
     -- Consuming by default: archives the source Iou and re-mints payee + change.
     -- Exercising a choice on this bank-signed contract contributes the bank's
     -- authority, so the freshly created Iou (signatory bank) is authorized.
+    -- Escrowed funds cannot be transferred — they can only be Released.
     choice Transfer : (ContractId Iou, Optional (ContractId Iou))
       with
         newOwner       : Party
         transferAmount : Decimal
       controller owner
       do
+        assertMsg "cannot transfer escrowed funds"  (isNone releaser)
         assertMsg "transfer amount must be positive" (transferAmount > 0.0)
-        assertMsg "insufficient funds" (transferAmount <= amount)
+        assertMsg "insufficient funds"               (transferAmount <= amount)
         -- the payee's cash is private (no earmark observers carried over)
-        paid <- create this with owner = newOwner, amount = transferAmount, observers = []
+        paid <- create this with owner = newOwner, amount = transferAmount, observers = [], releaser = None
         -- change stays with the original owner, keeping the same disclosure
         change <-
           if transferAmount < amount
             then Some <$> create this with amount = amount - transferAmount
             else pure None
         pure (paid, change)
+
+    -- Lock funds into bank-held escrow, releasable only by `releaserParty` (the
+    -- buyer side). Returns (escrowed Iou, optional change). The escrowed cash is
+    -- owned by the bank and disclosed to the named escrow observers.
+    choice Lock : (ContractId Iou, Optional (ContractId Iou))
+      with
+        lockAmount      : Decimal
+        releaserParty   : Party
+        escrowObservers : [Party]
+      controller owner
+      do
+        assertMsg "cannot re-lock escrowed funds"  (isNone releaser)
+        assertMsg "lock amount must be positive"   (lockAmount > 0.0)
+        assertMsg "insufficient funds to lock"     (lockAmount <= amount)
+        locked <- create this with
+          owner = bank, amount = lockAmount, observers = escrowObservers, releaser = Some releaserParty
+        change <-
+          if lockAmount < amount
+            then Some <$> create this with amount = amount - lockAmount
+            else pure None
+        pure (locked, change)
+
+    -- Release escrowed funds to a recipient (the supplier on confirmed delivery,
+    -- or back to the treasury on cancel). Only the stored releaser may call it.
+    choice Release : ContractId Iou
+      with
+        recipient : Party
+      controller (fromSome releaser)
+      do
+        assertMsg "not an escrowed Iou" (isSome releaser)
+        create this with owner = recipient, observers = [], releaser = None

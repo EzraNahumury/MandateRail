@@ -95,13 +95,19 @@ template SpendMandate
         assertMsg "mandate expired"                 v.notExpired
         assertMsg "amount must match quoted price"  (amount == quote.price)
 
-        -- Bring in the supplier's authority via their standing sealed offer.
-        poCid <- exercise quoteCid Accept with buyerAgent = agent, regulator = regulator
+        -- DvP leg 1: lock the payment into bank-held escrow, releasable by the
+        -- agent on confirmed delivery. The supplier is assured of funds but NOT
+        -- paid yet — so no paid-but-undelivered state is ever reachable.
+        (escrowedCash, _change) <- exercise cashCid Lock with
+                                     lockAmount      = amount
+                                     releaserParty   = agent
+                                     escrowObservers = [quote.supplier, agent]
 
-        -- Settle tokenized cash (treasury-owned -> owner authority in scope).
-        (paidCash, _change) <- exercise cashCid Transfer with
-                                 newOwner       = quote.supplier
-                                 transferAmount = amount
+        -- Bring in the supplier's authority via their standing sealed offer and
+        -- mint the funded-pending-delivery PO. Accept needs treasurer authority
+        -- (in scope here via the mandate signatory), so no bare PO is possible.
+        poCid <- exercise quoteCid Accept with
+                   buyerAgent = agent, treasurer = treasurer, regulator = regulator, escrowCid = escrowedCash
 
         -- Immutable, regulator-observable audit record — created INSIDE this one
         -- atomic transaction, so the rationale is provably tied to a real,
@@ -123,7 +129,7 @@ template SpendMandate
         pure CommitResult with
           mandate       = newMandate
           purchaseOrder = poCid
-          cash          = paidCash
+          cash          = escrowedCash
           audit         = auditCid
 
     -- Human-in-the-loop override. The agent CANNOT exceed the per-tx cap — but a
@@ -153,9 +159,12 @@ template SpendMandate
         assertMsg "mandate expired"                 v.notExpired
         assertMsg "amount must match quoted price"  (amount == quote.price)
 
-        poCid <- exercise quoteCid Accept with buyerAgent = agent, regulator = regulator
-        (paidCash, _change) <- exercise cashCid Transfer with
-                                 newOwner = quote.supplier, transferAmount = amount
+        (escrowedCash, _change) <- exercise cashCid Lock with
+                                     lockAmount      = amount
+                                     releaserParty   = agent
+                                     escrowObservers = [quote.supplier, agent]
+        poCid <- exercise quoteCid Accept with
+                   buyerAgent = agent, treasurer = treasurer, regulator = regulator, escrowCid = escrowedCash
 
         auditCid <- create AuditRecord with
           treasurer, agent, regulator, mandateId
@@ -170,7 +179,7 @@ template SpendMandate
         newMandate <- create this with remainingBudget = remainingBudget - amount
 
         pure CommitResult with
-          mandate = newMandate, purchaseOrder = poCid, cash = paidCash, audit = auditCid
+          mandate = newMandate, purchaseOrder = poCid, cash = escrowedCash, audit = auditCid
 
     -- Read-only pre-flight. Returns the SAME ledger verdicts a Commit would assert
     -- on, WITHOUT spending — so the UI's rule-lights are sourced from the ledger

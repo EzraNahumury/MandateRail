@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { StateSnapshot, CommitMode, AuditEntry, RevocationEntry, SupplierView } from "@/app/lib/types";
-import { fetchState, postCommit, postIssue, postRevoke, postEscalate, postApprove, postReject } from "@/app/lib/api";
+import { fetchState, postCommit, postIssue, postRevoke, postEscalate, postApprove, postReject, postConfirm } from "@/app/lib/api";
 import { Button, Card, Chip, MoneyGauge, money, Stat } from "@/app/components/ui";
 import { SpendAnalytics } from "@/app/components/charts";
 import { FlightBanner, type Flight } from "@/app/components/FlightBanner";
@@ -27,7 +27,8 @@ const SUPPLIER_KEY: Record<string, string> = { supplier: "a", "supplier-b": "b",
 // Autopilot step captions (the run-functions live in the component).
 const DEMO_CAPTIONS = [
   "Treasurer issues the spend mandate",
-  "Agent commits the cheapest compliant quote",
+  "Agent commits the cheapest compliant quote (escrow funded)",
+  "Delivery confirmed → escrow released to supplier (DvP)",
   "Ledger REJECTS an over-cap buy",
   "Ledger REJECTS an off-allow-list supplier",
   "Agent escalates an over-cap need",
@@ -299,6 +300,19 @@ export default function Home() {
       }
     });
 
+  const onConfirm = () =>
+    run(async () => {
+      showFlight({ phase: "submitting", label: "Confirming delivery…", detail: "Releasing escrow to the supplier (DvP)" });
+      const r = await postConfirm();
+      if (r.ok) {
+        showFlight({ phase: "ok", label: `Settled $${money(r.amount)} to ${r.supplier}`, detail: "Goods received → escrow released → SETTLED" });
+        addLog("ok", `DELIVERY CONFIRMED — escrow released, $${money(r.amount)} settled to ${r.supplier}.`);
+      } else {
+        showFlight({ phase: "error", label: "Confirm failed", detail: r.error ?? r.reason });
+        addLog("error", r.error ?? r.reason ?? "confirm error");
+      }
+    });
+
   const readOnly = snap?.mode === "snapshot"; // hosted demo with no live ledger
 
   // --- Autopilot: one click drives the REAL handlers through the whole story.
@@ -315,6 +329,7 @@ export default function Home() {
     const steps: Array<() => Promise<unknown>> = [
       () => onIssue(),
       () => onCommit("cheapest"),
+      () => onConfirm(),
       () => onCommit("overcap"),
       () => onCommit("offlist"),
       () => onEscalate(),
@@ -554,13 +569,26 @@ export default function Home() {
 
       <div className="mt-auto">
         {view?.purchaseOrder ? (
-          <div className="rounded-xl bg-emerald-50 p-4 text-center ring-1 ring-emerald-200">
-            <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">✓ Authorized + Funded</div>
-            <div className="mt-1 font-mono text-2xl font-bold text-emerald-700">
-              ${money(view.purchaseOrder.amount)}
+          view.purchaseOrder.status === "SETTLED" ? (
+            <div className="rounded-xl bg-emerald-50 p-4 text-center ring-1 ring-emerald-200">
+              <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">✓ Settled · paid</div>
+              <div className="mt-1 font-mono text-2xl font-bold text-emerald-700">${money(view.purchaseOrder.amount)}</div>
+              <div className="mt-1 text-[11px] text-emerald-600/80">escrow released on delivery · DvP</div>
             </div>
-            <div className="mt-1 text-[11px] text-emerald-600/80">cap &amp; remaining budget: hidden</div>
-          </div>
+          ) : (
+            <div className="rounded-xl bg-sky-50 p-4 text-center ring-1 ring-sky-200">
+              <div className="text-xs font-semibold uppercase tracking-wider text-sky-700">⏳ Funded · awaiting delivery</div>
+              <div className="mt-1 font-mono text-2xl font-bold text-sky-700">${money(view.purchaseOrder.amount)}</div>
+              <div className="mt-1 text-[11px] text-sky-600/80">cash held in escrow — not paid until receipt</div>
+              <button
+                onClick={onConfirm}
+                disabled={busy || auto || readOnly}
+                className="mt-2.5 w-full rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Confirm receipt → release escrow
+              </button>
+            </div>
+          )
         ) : (
           <div className="rounded-xl bg-neutral-50 p-4 text-center text-sm text-neutral-400 ring-1 ring-neutral-200">
             Awaiting award…

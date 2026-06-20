@@ -46,3 +46,8 @@ export async function postReject(): Promise<ApprovalActionResponse> {
   const r = await fetch("/api/reject", { method: "POST" });
   return (await r.json()) as ApprovalActionResponse;
 }
+
+export async function postConfirm(): Promise<ApprovalActionResponse> {
+  const r = await fetch("/api/confirm", { method: "POST" });
+  return (await r.json()) as ApprovalActionResponse;
+}

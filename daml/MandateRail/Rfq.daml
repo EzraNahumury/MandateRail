@@ -1,5 +1,6 @@
 module MandateRail.Rfq where
 
+import MandateRail.Cash
 import MandateRail.Purchase
 
 -- | Sealed-bid quote. Signatory is the supplier; the ONLY observer is the
@@ -20,11 +21,19 @@ template RfqQuote
     -- Consuming: a quote is single-use (no replay). Exercising this
     -- supplier-signed choice contributes the supplier's authority, which is
     -- what lets the agent + supplier co-sign the resulting PurchaseOrder.
+    --
+    -- Controlled by buyerAgent AND treasurer: the treasurer's authority is only
+    -- in scope inside Commit (it flows from the SpendMandate signatory), so the
+    -- agent CANNOT mint a bare PurchaseOrder on its own — every PO is the product
+    -- of a real, budget-debited Commit. `escrowCid` is the bank-held payment the
+    -- Commit just locked, so the PO is funded-but-pending-delivery from birth.
     choice Accept : ContractId PurchaseOrder
       with
         buyerAgent : Party
+        treasurer  : Party
         regulator  : Party
-      controller buyerAgent
+        escrowCid  : ContractId Iou
+      controller buyerAgent, treasurer
       do
         create PurchaseOrder with
           agent     = buyerAgent
@@ -32,4 +41,5 @@ template RfqQuote
           regulator = regulator
           category  = category
           amount    = price
-          status    = "AUTHORIZED_FUNDED"
+          status    = "FUNDED_PENDING_DELIVERY"
+          escrow    = escrowCid

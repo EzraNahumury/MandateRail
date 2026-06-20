@@ -8,6 +8,7 @@ import Daml.Script
 import MandateRail.Cash
 import MandateRail.Mandate
 import MandateRail.Rfq
+import MandateRail.Purchase
 import MandateRail.Audit
 import MandateRail.Charter
 import MandateRail.Approval
@@ -40,7 +41,7 @@ setupWorld cap budget = do
   now <- getTime
   let expiry = addRelTime now (hours 720) -- 30 days
   cash <- submit bank do
-    createCmd Iou with bank = bank, owner = treasurer, amount = budget, observers = [agent]
+    createCmd Iou with bank = bank, owner = treasurer, amount = budget, observers = [agent], releaser = None
   mandate <- submit treasurer do
     createCmd SpendMandate with
       treasurer = treasurer
@@ -72,7 +73,7 @@ testHappyPath = do
     exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "agent: compliant pick"
   Some po <- queryContractId w.supA res.purchaseOrder
   po.amount === 9000.0
-  po.status === "AUTHORIZED_FUNDED"
+  po.status === "FUNDED_PENDING_DELIVERY"
   Some m <- queryContractId w.treasurer res.mandate
   m.remainingBudget === 41000.0
 
@@ -348,3 +349,79 @@ testDryRunVerdicts = do
   -- mandate is untouched (nonconsuming) — still queryable with full budget
   Some m <- queryContractId w.treasurer w.mandate
   m.remainingBudget === 50000.0
+
+-- 22. Honest DvP: after Commit the PO is FUNDED_PENDING_DELIVERY and the supplier
+--     is NOT yet paid; only ConfirmReceipt releases the escrow to the supplier and
+--     marks the order SETTLED. No paid-but-undelivered state is reachable.
+testDeliveryReleasesPayment : Script ()
+testDeliveryReleasesPayment = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  res <- submit w.agent do
+    exerciseCmd w.mandate Commit with quoteCid = q, amount = 9000.0, cashCid = w.cash, agentNote = "x"
+  Some po <- queryContractId w.supA res.purchaseOrder
+  po.status === "FUNDED_PENDING_DELIVERY"
+  -- the cash is escrowed (bank-held), NOT the supplier's yet
+  Some esc <- queryContractId w.supA res.cash
+  esc.owner === w.bank
+  esc.releaser === Some w.agent
+  -- buyer confirms receipt -> escrow releases to supplier, PO settled
+  (settledPo, paidCash) <- submit w.agent do exerciseCmd res.purchaseOrder ConfirmReceipt
+  Some po2 <- queryContractId w.supA settledPo
+  po2.status === "SETTLED"
+  Some cash <- queryContractId w.supA paidCash
+  cash.owner === w.supA
+  cash.amount === 9000.0
+
+-- 23. No bare PurchaseOrder: the agent alone cannot exercise Accept (it now
+--     requires the treasurer's authority, in scope only inside a real Commit), so
+--     no AUTHORIZED/FUNDED PO can be minted without a budget-debiting Commit.
+testNoBarePurchaseOrder : Script ()
+testNoBarePurchaseOrder = do
+  w <- setupWorld 10000.0 50000.0
+  q <- mkQuote w.supA w.agent 9000.0
+  (escrow, _change) <- submit w.treasurer do
+    exerciseCmd w.cash Lock with lockAmount = 9000.0, releaserParty = w.agent, escrowObservers = [w.supA, w.agent]
+  submitMustFail w.agent do
+    exerciseCmd q Accept with
+      buyerAgent = w.agent, treasurer = w.treasurer, regulator = w.regulator, escrowCid = escrow
+
+-- 24. Governance: a charter requires TWO independent signatures — the CEO
+--     proposes, only the CFO can accept. The CEO alone cannot self-accept.
+testCharterGovernance : Script ()
+testCharterGovernance = do
+  w <- setupWorld 10000.0 50000.0
+  prop <- submit w.ceo do
+    createCmd CharterProposal with
+      ceo = w.ceo, cfo = w.cfo, treasurer = w.treasurer, regulator = w.regulator
+      ceilingPerTxCap = 15000.0, ceilingBudget = 100000.0
+  submitMustFail w.ceo do exerciseCmd prop AcceptByCfo  -- CEO can't self-accept
+  ch <- submit w.cfo do exerciseCmd prop AcceptByCfo
+  Some _ <- queryContractId w.treasurer ch
+  pure ()
+
+-- 25. Portfolio: one chartered authority mints multiple operational mandates
+--     across spend categories, each tighter than the charter ceiling.
+testCharterPortfolio : Script ()
+testCharterPortfolio = do
+  w <- setupWorld 10000.0 50000.0
+  now <- getTime
+  let expiry = addRelTime now (hours 720)
+  prop <- submit w.ceo do
+    createCmd CharterProposal with
+      ceo = w.ceo, cfo = w.cfo, treasurer = w.treasurer, regulator = w.regulator
+      ceilingPerTxCap = 15000.0, ceilingBudget = 100000.0
+  ch <- submit w.cfo do exerciseCmd prop AcceptByCfo
+  m1 <- submit w.treasurer do
+    exerciseCmd ch MintMandate with
+      agent = w.agent, bank = w.bank, mandateId = "P-1", category = "cloud-compute"
+      perTxCap = 10000.0, remainingBudget = 50000.0, expiry = expiry
+      approvedSuppliers = [w.supA, w.supB], allowAutoCommit = True
+  m3 <- submit w.treasurer do
+    exerciseCmd ch MintMandate with
+      agent = w.agent, bank = w.bank, mandateId = "P-3", category = "ad-inventory"
+      perTxCap = 5000.0, remainingBudget = 20000.0, expiry = expiry
+      approvedSuppliers = [w.supB], allowAutoCommit = False
+  Some _ <- queryContractId w.treasurer m1
+  Some _ <- queryContractId w.treasurer m3
+  pure ()

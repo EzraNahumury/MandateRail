@@ -42,7 +42,7 @@ export async function POST() {
     const expiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     // 2) Fund the treasury, earmarked (disclosed) to the agent.
-    await create(omni, TID.iou, { bank: B, owner: T, amount: "50000.0", observers: [A] });
+    await create(omni, TID.iou, { bank: B, owner: T, amount: "50000.0", observers: [A], releaser: null });
 
     // 3) LAYER 1 — the CEO + CFO charter (multi-sig) with absolute ceilings.
     const charter = (await create(omni, TID.charter, {
