@@ -102,7 +102,7 @@ These are packaging blockers, not technical ones. None affects the working ledge
 
 1. **Live deploy URL** — ✅ DONE: **https://mandate-rail.vercel.app** (Vercel, read-only snapshot mode). Full interactive ledger still runs locally.
 2. **Recorded video** — the 3-minute pitch+demo is scripted in the README but not recorded or linked. Lead with the two money-shots (the ledger says NO; instant revoke).
-3. **Exported deck PDF** — `docs/deck.pdf` is referenced in the repo structure but not yet present/exported.
+3. **Exported deck PDF** — ✅ DONE: [PDF on Google Drive](https://drive.google.com/file/d/1jDnMEZr1rQf_xshU0BuoAaZihfJmbrXp/view?usp=sharing) (source `PITCH_DECK.md`).
 4. **Team names** — README "Team & Acknowledgements" is still `TODO — names / roles / contact`. The pre-submission checklist item is unchecked.
 5. **README test-count fix (§0)** — bump 14→21 / 8→21 in the three stale locations and add the 7 adversarial rows to the Testing table. (Trivial but visible; a judge who runs `daml test` will see 21 and notice the README says 14.)
 
