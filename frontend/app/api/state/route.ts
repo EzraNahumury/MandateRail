@@ -56,11 +56,32 @@ export async function GET() {
     const agentPOs = await query<POPayload>(agentTok, [TID.po]);
     const agentAudit = await query<AuditPayload>(agentTok, [TID.audit]);
 
-    // Supplier A's view — proves privacy: it is NOT a stakeholder of the mandate.
-    const supTok = tok("SupplierA");
-    const supMandate = await query<MandatePayload>(supTok, [TID.mandate]); // expect []
-    const supQuotes = await query<QuotePayload>(supTok, [TID.quote]);
-    const supPOs = await query<POPayload>(supTok, [TID.po]);
+    // Each supplier's OWN view — proves sealed-bid privacy per party: a supplier
+    // is NOT a stakeholder of the mandate and only ever sees its own quote + award.
+    const SUPPLIERS = [
+      { key: "a", party: "SupplierA", label: "Supplier A" },
+      { key: "b", party: "SupplierB", label: "Supplier B" },
+      { key: "c", party: "SupplierC", label: "Supplier C" },
+    ] as const;
+    const suppliers = await Promise.all(
+      SUPPLIERS.map(async (s) => {
+        const t = tok(s.party);
+        const sm = await query<MandatePayload>(t, [TID.mandate]); // expect []
+        const sq = await query<QuotePayload>(t, [TID.quote]);
+        const sp = await query<POPayload>(t, [TID.po]);
+        return {
+          key: s.key,
+          label: s.label,
+          canSeeMandate: sm.length > 0,
+          ownQuotes: [...sq]
+            .sort((a, b) => Number(a.payload.price) - Number(b.payload.price))
+            .map((q) => ({ price: q.payload.price })),
+          purchaseOrder: sp[0]?.payload
+            ? { amount: sp[0].payload.amount, status: sp[0].payload.status }
+            : null,
+        };
+      }),
+    );
 
     // Regulator's view — sees POs + audit, NOT the mandate or sealed bids.
     const regTok = tok("Regulator");
@@ -115,14 +136,7 @@ export async function GET() {
         purchaseOrders: agentPOs.map(poView),
         auditTrail: agentAudit.map((a) => toEntry(a.payload)).sort(byNewest),
       },
-      supplier: {
-        label: "Supplier A",
-        canSeeMandate: supMandate.length > 0,
-        ownQuote: supQuotes[0]?.payload ? { price: supQuotes[0].payload.price } : null,
-        purchaseOrder: supPOs[0]?.payload
-          ? { amount: supPOs[0].payload.amount, status: supPOs[0].payload.status }
-          : null,
-      },
+      suppliers,
       regulator: {
         canSeeMandate: regMandate.length > 0, // expect false — selective disclosure
         canSeeQuotes: regQuotes.length > 0, // expect false

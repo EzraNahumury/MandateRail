@@ -1,5 +1,6 @@
 import type { AuditEntry } from "@/app/lib/types";
 import { money } from "./ui";
+import { CountTile, SupplierDonut, type DonutSlice } from "./visuals";
 
 // All charts are hand-rolled SVG — zero charting deps, same spirit as MoneyGauge.
 // Everything is derived live from the on-chain audit trail (the regulator's view),
@@ -10,17 +11,6 @@ const hhmmss = (iso: string) => {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-US", { hour12: false });
 };
-
-function MiniStat({ label, value, tone = "neutral" }: { label: string; value: string; tone?: "neutral" | "amber" }) {
-  return (
-    <div className="rounded-lg bg-neutral-50 px-3 py-2 ring-1 ring-neutral-200">
-      <div className="text-[10px] font-medium uppercase tracking-wider text-neutral-400">{label}</div>
-      <div className={`mt-0.5 font-mono text-base font-semibold ${tone === "amber" ? "text-amber-600" : "text-neutral-900"}`}>
-        {value}
-      </div>
-    </div>
-  );
-}
 
 // Budget burndown — remaining budget after each commit, in commit order.
 function Burndown({ trail, original }: { trail: AuditEntry[]; original: number }) {
@@ -151,6 +141,13 @@ export function SpendAnalytics({
   const humanApproved = ordered.filter((a) => a.humanApproved).length;
   const avg = ordered.length ? totalCommitted / ordered.length : 0;
 
+  // Spend share per supplier, aggregated from the audit trail.
+  const shareMap = new Map<string, number>();
+  for (const a of ordered) shareMap.set(a.supplier, (shareMap.get(a.supplier) ?? 0) + Number(a.amount));
+  const supplierShare: DonutSlice[] = [...shareMap.entries()]
+    .map(([label, value]) => ({ label, value }))
+    .sort((x, y) => y.value - x.value);
+
   if (ordered.length === 0) {
     return (
       <section className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
@@ -175,10 +172,10 @@ export function SpendAnalytics({
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MiniStat label="Committed" value={`$${money(totalCommitted)}`} />
-        <MiniStat label="Transactions" value={String(ordered.length)} />
-        <MiniStat label="Avg ticket" value={`$${money(avg)}`} />
-        <MiniStat label="Human-approved" value={String(humanApproved)} tone={humanApproved ? "amber" : "neutral"} />
+        <CountTile label="Committed" value={totalCommitted} prefix="$" tone="violet" />
+        <CountTile label="Transactions" value={ordered.length} tone="sky" />
+        <CountTile label="Avg ticket" value={avg} prefix="$" tone="neutral" />
+        <CountTile label="Human-approved" value={humanApproved} tone={humanApproved ? "amber" : "neutral"} />
       </div>
 
       <LimitUtilization
@@ -186,6 +183,11 @@ export function SpendAnalytics({
         largestTicket={Math.max(0, ...ordered.map((a) => Number(a.amount)))}
         perTxCap={perTxCap}
       />
+
+      <div className="mt-5">
+        <div className="mb-2 text-xs font-medium text-neutral-500">Spend share by supplier</div>
+        <SupplierDonut slices={supplierShare} />
+      </div>
 
       <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>

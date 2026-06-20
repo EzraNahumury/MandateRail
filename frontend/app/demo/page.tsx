@@ -3,12 +3,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import type { StateSnapshot, CommitMode, AuditEntry, RevocationEntry } from "@/app/lib/types";
+import type { StateSnapshot, CommitMode, AuditEntry, RevocationEntry, SupplierView } from "@/app/lib/types";
 import { fetchState, postCommit, postIssue, postRevoke, postEscalate, postApprove, postReject } from "@/app/lib/api";
 import { Button, Card, Chip, MoneyGauge, money, Stat } from "@/app/components/ui";
 import { SpendAnalytics } from "@/app/components/charts";
 import { FlightBanner, type Flight } from "@/app/components/FlightBanner";
 import { Sidebar } from "@/app/demo/components/Sidebar";
+import { AuthorityRibbon, ComplianceMatrix } from "@/app/components/visuals";
 
 type LogKind = "ok" | "reject" | "error" | "info";
 interface LogEntry {
@@ -18,7 +19,10 @@ interface LogEntry {
   text: string;
 }
 
-type Role = "cockpit" | "treasurer" | "agent" | "supplier" | "regulator";
+type Role = "cockpit" | "treasurer" | "agent" | "supplier" | "supplier-b" | "supplier-c" | "regulator";
+
+// Which SupplierView a supplier session maps to.
+const SUPPLIER_KEY: Record<string, string> = { supplier: "a", "supplier-b": "b", "supplier-c": "c" };
 
 /* ---------- sign-in icons ---------- */
 const svg = (children: ReactNode) => (
@@ -35,7 +39,9 @@ const IconScale = () => svg(<><path d="M12 3v18M8 21h8M6 7h12" /><path d="M6 7 3
 const PARTIES = [
   { key: "treasurer", title: "Treasurer Console", sub: "issuer · holds mandate authority", icon: IconBank, chip: "bg-sky-50 text-sky-600 ring-sky-100" },
   { key: "agent", title: "Buyer Agent", sub: "autonomous buyer · spends on policy", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
-  { key: "supplier", title: "Supplier A", sub: "counterparty · receives a slice", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  { key: "supplier", title: "Supplier A", sub: "counterparty · sealed bid · own slice only", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  { key: "supplier-b", title: "Supplier B", sub: "counterparty · sealed bid · own slice only", icon: IconBox, chip: "bg-teal-50 text-teal-600 ring-teal-100" },
+  { key: "supplier-c", title: "Supplier C", sub: "counterparty · sealed bid · own slice only", icon: IconBox, chip: "bg-cyan-50 text-cyan-600 ring-cyan-100" },
   { key: "regulator", title: "Regulator / Auditor", sub: "read-only supervisor · sees the audit trail", icon: IconScale, chip: "bg-amber-50 text-amber-600 ring-amber-100" },
 ] as const;
 
@@ -43,6 +49,8 @@ const SESSION_META: Record<Role, { label: string; icon: () => ReactNode; chip: s
   treasurer: { label: "Treasurer", icon: IconBank, chip: "bg-sky-50 text-sky-600 ring-sky-100" },
   agent: { label: "Buyer Agent", icon: IconBot, chip: "bg-violet-50 text-violet-600 ring-violet-100" },
   supplier: { label: "Supplier A", icon: IconBox, chip: "bg-emerald-50 text-emerald-600 ring-emerald-100" },
+  "supplier-b": { label: "Supplier B", icon: IconBox, chip: "bg-teal-50 text-teal-600 ring-teal-100" },
+  "supplier-c": { label: "Supplier C", icon: IconBox, chip: "bg-cyan-50 text-cyan-600 ring-cyan-100" },
   regulator: { label: "Regulator", icon: IconScale, chip: "bg-amber-50 text-amber-600 ring-amber-100" },
   cockpit: { label: "Cockpit · all parties", icon: IconGrid, chip: "bg-neutral-100 text-neutral-600 ring-neutral-200" },
 };
@@ -274,8 +282,10 @@ export default function Home() {
   const mandate = snap?.treasurer.mandate ?? null;
   const charter = snap?.treasurer.charter ?? null;
   const pendingApprovals = snap?.treasurer.pendingApprovals ?? [];
-  const supplier = snap?.supplier;
+  const suppliers = snap?.suppliers ?? [];
+  const supplierFor = (key: string) => suppliers.find((s) => s.key === key);
   const agent = snap?.agent;
+  const largestTicket = Math.max(0, ...(snap?.regulator.auditTrail ?? []).map((a) => Number(a.amount)));
 
   // --- the three party views (rendered in both cockpit and single-login layouts) ---
 
@@ -327,6 +337,16 @@ export default function Home() {
               ))}
             </div>
           </div>
+          {charter && (
+            <div className="border-t border-neutral-100 pt-3">
+              <div className="mb-2 text-xs text-neutral-500">Nested authority limits</div>
+              <AuthorityRibbon
+                ceilingPerTx={Number(charter.ceilingPerTxCap)}
+                perTxCap={Number(mandate.perTxCap)}
+                largestTicket={largestTicket}
+              />
+            </div>
+          )}
         </>
       ) : (
         <p className="text-sm text-neutral-500">No active mandate. Issue one to begin.</p>
@@ -441,28 +461,47 @@ export default function Home() {
     </Card>
   );
 
-  const supplierCard = (
-    <Card title={supplier?.label ?? "Supplier A"} subtitle="counterparty" accent="emerald">
+  const supplierCardFor = (view: SupplierView | undefined) => (
+    <Card title={view?.label ?? "Supplier"} subtitle="counterparty · sealed bid" accent="emerald">
       <div className="rounded-lg bg-neutral-50 p-3 ring-1 ring-neutral-200">
         <div className="flex items-center gap-2 text-sm">
-          <span className="text-lg">{supplier && !supplier.canSeeMandate ? "🔒" : "⚠️"}</span>
-          <span className={`font-medium ${supplier && !supplier.canSeeMandate ? "text-emerald-700" : "text-amber-700"}`}>
-            {supplier && !supplier.canSeeMandate ? "Mandate & budget: NOT VISIBLE" : "Mandate visible (unexpected)"}
+          <span className="text-lg">{view && !view.canSeeMandate ? "🔒" : "⚠️"}</span>
+          <span className={`font-medium ${view && !view.canSeeMandate ? "text-emerald-700" : "text-amber-700"}`}>
+            {view && !view.canSeeMandate ? "Mandate & budget: NOT VISIBLE" : "Mandate visible (unexpected)"}
           </span>
         </div>
         <p className="mt-1 text-[11px] text-neutral-500">
-          The cap and remaining budget never reach this node — so you can&apos;t price up to it.
+          The cap and remaining budget never reach this node — and you never see a rival&apos;s bid.
         </p>
       </div>
 
-      <Stat label="Your sealed quote" value={supplier?.ownQuote ? `$${money(supplier.ownQuote.price)}` : "—"} mono />
+      <div>
+        <div className="mb-1.5 text-xs text-neutral-500">
+          Your sealed quote{view && view.ownQuotes.length > 1 ? "s" : ""}
+        </div>
+        {view && view.ownQuotes.length > 0 ? (
+          <div className="space-y-1">
+            {view.ownQuotes.map((q, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-md bg-neutral-50 px-3 py-1.5 text-sm ring-1 ring-neutral-200"
+              >
+                <span className="text-neutral-500">bid #{i + 1}</span>
+                <span className="font-mono font-medium text-neutral-900">${money(q.price)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-neutral-400">No quote submitted.</p>
+        )}
+      </div>
 
       <div className="mt-auto">
-        {supplier?.purchaseOrder ? (
+        {view?.purchaseOrder ? (
           <div className="rounded-xl bg-emerald-50 p-4 text-center ring-1 ring-emerald-200">
             <div className="text-xs font-semibold uppercase tracking-wider text-emerald-700">✓ Authorized + Funded</div>
             <div className="mt-1 font-mono text-2xl font-bold text-emerald-700">
-              ${money(supplier.purchaseOrder.amount)}
+              ${money(view.purchaseOrder.amount)}
             </div>
             <div className="mt-1 text-[11px] text-emerald-600/80">cap &amp; remaining budget: hidden</div>
           </div>
@@ -475,10 +514,14 @@ export default function Home() {
     </Card>
   );
 
+  const supplierNote =
+    "You only ever receive your own slice. The cap never reaches your node, and you never see a rival's bid.";
   const sessionNote: Record<Exclude<Role, "cockpit">, string> = {
     treasurer: "You hold the mandate authority — issue and revoke. You see the cap and live consumption.",
     agent: "You can spend only within the encoded mandate. The ledger rejects anything off-policy — not a prompt.",
-    supplier: "You only ever receive your own slice. The cap never reaches your node — find it, you can't.",
+    supplier: supplierNote,
+    "supplier-b": supplierNote,
+    "supplier-c": supplierNote,
     regulator: "Read-only supervisor. You see every authorized purchase + its on-chain audit, but never the cap, budget, or sealed bids.",
   };
 
@@ -503,6 +546,8 @@ export default function Home() {
       </div>
 
       {reg && reg.revocations.length > 0 && <RevocationsPanel revocations={reg.revocations} />}
+
+      {reg && reg.auditTrail.length > 0 && <ComplianceMatrix trail={reg.auditTrail} />}
 
       <div className="flex-1">
         <div className="mb-1.5 text-xs text-neutral-500">
@@ -650,7 +695,7 @@ export default function Home() {
                   <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
                     {treasurerCard}
                     {agentCard}
-                    {supplierCard}
+                    {supplierCardFor(supplierFor("a"))}
                     {regulatorCard}
                   </div>
                   <SpendAnalytics
@@ -668,9 +713,9 @@ export default function Home() {
                     ? treasurerCard
                     : session === "agent"
                       ? agentCard
-                      : session === "supplier"
-                        ? supplierCard
-                        : regulatorCard}
+                      : session === "regulator"
+                        ? regulatorCard
+                        : supplierCardFor(supplierFor(SUPPLIER_KEY[session] ?? "a"))}
                   {session === "agent" && (
                     <div className="mt-5">
                       <SpendAnalytics

@@ -93,6 +93,14 @@ export interface RevocationEntry {
 
 export type QuoteKind = "compliant" | "over-cap" | "off-list";
 
+export interface SupplierView {
+  key: string; // "a" | "b" | "c"
+  label: string;
+  canSeeMandate: boolean;
+  ownQuotes: { price: string }[];
+  purchaseOrder: { amount: string; status: string } | null;
+}
+
 export interface CharterPayload {
   ceo: string;
   cfo: string;
@@ -124,12 +132,7 @@ export interface StateSnapshot {
     purchaseOrders: { supplier: string; amount: string; status: string }[];
     auditTrail: AuditEntry[];
   };
-  supplier: {
-    label: string;
-    canSeeMandate: boolean;
-    ownQuote: { price: string } | null;
-    purchaseOrder: { amount: string; status: string } | null;
-  };
+  suppliers: SupplierView[];
   regulator: {
     canSeeMandate: boolean;
     canSeeQuotes: boolean;
