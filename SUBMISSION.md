@@ -7,7 +7,7 @@
 | | |
 |---|---|
 | **Repository** | https://github.com/EzraNahumury/MandateRail |
-| **Live demo** | _Deploy `frontend/` to Vercel (`vercel.json` sets `DEMO_SNAPSHOT=1`) → a read-only UI on a **captured real ledger snapshot**. Full interactive ledger runs locally per the walkthrough._ |
+| **Live demo** | **https://mandate-rail.vercel.app** — open [`/demo?role=cockpit`](https://mandate-rail.vercel.app/demo?role=cockpit). Read-only UI on a **captured real ledger snapshot**; the full interactive ledger runs locally per the walkthrough below. |
 | **Video (3 min)** | _TBD — add link before submission_ |
 | **Deck** | [`PITCH_DECK.md`](PITCH_DECK.md) — PDF export pending |
 | **Event** | Build on Canton Hackathon — Canton Foundation, June 2026 |

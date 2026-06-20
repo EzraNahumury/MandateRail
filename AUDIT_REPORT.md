@@ -36,7 +36,7 @@ The README Testing table (lines 825–838) also lists only **14** of the 21 test
 | **TS buyer agent** | ✅ Ready (intentionally thin) | Scripted loop: reads mandate + sealed quotes, exercises `Commit`, demonstrates over-cap / off-list rejection as raw ledger `AssertionFailed`. Thinness is the design, not a gap — the agent is meant to be visibly powerless. Optional real model reasoning via Ollama Cloud (`gpt-oss:120b-cloud`) carries zero enforcement authority — it only picks among ledger-compliant quotes, is whitelist-validated, and falls back to deterministic cheapest. |
 | **Next.js BFF + UI** | ✅ Ready | Standalone Next.js 16 / React 19 / Tailwind v4 app. Route handlers proxy the Daml JSON Ledger API and mint per-party JWTs server-side via `node:crypto`. Light-theme landing (`/`) + cockpit (`/demo`) with 4 live party panels (Treasurer, Buyer Agent, Supplier A, Regulator) + live spend-analytics strip, all derived from the on-chain audit trail (no mock data). |
 | **Security** | ✅ Ready | Guardrails are ledger preconditions, not app code (the core claim). Adversarial suite proves prompt-injection inert, forged amounts rejected, agent self-approval impossible. BFF hardened: server-side JWT secret handling + zod body validation on route handlers. See §3. |
-| **Deploy** | ⚠️ Gap | Runs locally on `daml start` + `npm run dev`. No public live URL yet. The submission brief asks for a reachable link. See §4. |
+| **Deploy** | ✅ Live | **https://mandate-rail.vercel.app** — read-only snapshot of real ledger output (Vercel, `DEMO_SNAPSHOT=1`). Full interactive ledger runs locally on `daml start` + `npm run dev`. |
 | **Submission docs** | ⚠️ Mostly ready, blockers remain | README is thorough and honest. Blockers: stale test counts (§0), no recorded video, no exported deck PDF, team names still `TODO`. See §4. |
 
 **Bottom line:** the technical substance (Daml + agent + UI + security) is submission-grade today. The remaining work is packaging — deploy URL, video, deck, team names, and the README test-count fix.
@@ -100,7 +100,7 @@ All 21 below are present in `daml/MandateRail/Tests.daml` and run as Daml Script
 
 These are packaging blockers, not technical ones. None affects the working ledger/agent/UI.
 
-1. **Live deploy URL** — app runs locally only (`daml start` + `npm run dev`). The brief requests a reachable live product link. Needs UI deploy (Vercel/Netlify free tier) + a hosted sandbox. README Submission Artifacts and Screenshots sections both still read "_public deploy + URL before submission_".
+1. **Live deploy URL** — ✅ DONE: **https://mandate-rail.vercel.app** (Vercel, read-only snapshot mode). Full interactive ledger still runs locally.
 2. **Recorded video** — the 3-minute pitch+demo is scripted in the README but not recorded or linked. Lead with the two money-shots (the ledger says NO; instant revoke).
 3. **Exported deck PDF** — `docs/deck.pdf` is referenced in the repo structure but not yet present/exported.
 4. **Team names** — README "Team & Acknowledgements" is still `TODO — names / roles / contact`. The pre-submission checklist item is unchecked.

@@ -81,7 +81,7 @@ MandateRail is the deliberate **inversion** of the "AI wrapper" trope the track 
 ## Screenshots & Demo
 
 > 📹 **3-minute video pitch + demo:** _add link before submission_
-> 🖥️ **Live product:** runs locally on a Canton sandbox — see [Getting Started](#getting-started). _public deploy + URL before submission_
+> 🖥️ **Live product:** **https://mandate-rail.vercel.app** — open [`/demo?role=cockpit`](https://mandate-rail.vercel.app/demo?role=cockpit) (read-only snapshot of real ledger output). Full interactive ledger runs locally — see [Getting Started](#getting-started).
 
 **Landing**
 
@@ -960,7 +960,7 @@ We are explicit about what is real vs. mocked — this credibility is itself a j
 
 - ✅ **Public repository:** https://github.com/EzraNahumury/MandateRail
 - ⏳ **3-minute video pitch + demo:** _add link before submission_
-- ⏳ **Live product:** runs locally (Canton sandbox) — _public deploy + URL before submission_
+- ✅ **Live product:** **https://mandate-rail.vercel.app** (read-only snapshot) · full interactive ledger runs locally
 - ⏳ **Presentation deck:** _add `docs/deck.pdf` before submission_
 
 > ⚠️ **Pre-submission checklist:**
@@ -968,7 +968,7 @@ We are explicit about what is real vs. mocked — this credibility is itself a j
 > - [x] Screenshots into `docs/diagrams/` (landing, cockpit, sign-in)
 > - [x] `daml test` passes (21/21) and the app runs on a fresh `daml start` + `npm run dev`
 > - [ ] Record + link the 3-minute video (lead with the two money-shots)
-> - [ ] Deploy the UI + a hosted sandbox and paste the live URL
+> - [x] Live URL deployed: https://mandate-rail.vercel.app (read-only snapshot mode)
 > - [ ] Add the presentation deck
 > - [ ] Fill in the team names + contact below
 
