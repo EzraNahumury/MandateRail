@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "env": {
+    "DEMO_SNAPSHOT": "1",
+    "LEDGER_SECRET": "demo-readonly-snapshot-no-tokens-minted"
+  }
+}

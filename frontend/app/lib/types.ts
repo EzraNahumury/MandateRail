@@ -111,6 +111,7 @@ export interface CharterPayload {
 }
 
 export interface StateSnapshot {
+  mode?: "live" | "snapshot";
   treasurer: {
     mandate: {
       mandateId: string;

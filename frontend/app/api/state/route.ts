@@ -12,10 +12,22 @@ import type {
   StateSnapshot,
   QuoteKind,
 } from "@/app/lib/types";
+// A REAL /api/state output captured from a live Canton sandbox. Served read-only
+// when no ledger is reachable (e.g. a Vercel deploy) so the live URL is browsable
+// without a hosted ledger — genuine ledger output, not invented mock data.
+import capturedSnapshot from "@/app/lib/snapshot.json";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // Explicit snapshot mode for a hosted deploy with no ledger (e.g. Vercel:
+  // set DEMO_SNAPSHOT=1). Serves the captured REAL ledger output, read-only.
+  if (process.env.DEMO_SNAPSHOT === "1") {
+    return NextResponse.json(
+      { ...(capturedSnapshot as object), mode: "snapshot" },
+      { headers: { "X-Mode": "snapshot" } },
+    );
+  }
   try {
     const { byName, byId } = await parties();
     const label = (id: string) => byId[id] ?? id.split("::")[0];
@@ -154,8 +166,17 @@ export async function GET() {
       },
     };
 
-    return NextResponse.json(snapshot);
+    return NextResponse.json({ ...snapshot, mode: "live" });
   } catch (e) {
+    // No reachable ledger → serve the captured real snapshot read-only (so a
+    // hosted UI without a backend still shows genuine ledger data). Local dev
+    // with `daml start` up always takes the live path above.
+    if (capturedSnapshot && typeof capturedSnapshot === "object") {
+      return NextResponse.json(
+        { ...(capturedSnapshot as object), mode: "snapshot" },
+        { headers: { "X-Mode": "snapshot" } },
+      );
+    }
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

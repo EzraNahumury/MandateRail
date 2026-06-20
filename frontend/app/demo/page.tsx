@@ -299,6 +299,8 @@ export default function Home() {
       }
     });
 
+  const readOnly = snap?.mode === "snapshot"; // hosted demo with no live ledger
+
   // --- Autopilot: one click drives the REAL handlers through the whole story.
   // Every beat hits the live BFF/ledger (no mock) and self-narrates via the
   // FlightBanner + activity log. Perfect for a cold judge or a single-take video.
@@ -307,7 +309,7 @@ export default function Home() {
     abortRef.current = true;
   };
   const runDemo = async () => {
-    if (auto) return;
+    if (auto || readOnly) return;
     abortRef.current = false;
     setAuto(true);
     const steps: Array<() => Promise<unknown>> = [
@@ -423,10 +425,10 @@ export default function Home() {
               </div>
               <p className="mt-1 text-[11px] italic leading-snug text-neutral-500">&ldquo;{p.reason}&rdquo;</p>
               <div className="mt-2 flex gap-2">
-                <Button variant="primary" onClick={onApprove} disabled={busy || auto}>
+                <Button variant="primary" onClick={onApprove} disabled={busy || auto || readOnly}>
                   Approve over-cap
                 </Button>
-                <Button variant="ghost" onClick={onReject} disabled={busy || auto}>
+                <Button variant="ghost" onClick={onReject} disabled={busy || auto || readOnly}>
                   Reject
                 </Button>
               </div>
@@ -436,10 +438,10 @@ export default function Home() {
       )}
 
       <div className="mt-auto flex gap-2 pt-2">
-        <Button variant="ghost" onClick={onIssue} disabled={busy || auto}>
+        <Button variant="ghost" onClick={onIssue} disabled={busy || auto || readOnly}>
           {mandate ? "Reset mandate" : "Issue mandate"}
         </Button>
-        <Button variant="danger" onClick={onRevoke} disabled={busy || auto || !mandate}>
+        <Button variant="danger" onClick={onRevoke} disabled={busy || auto || readOnly || !mandate}>
           Revoke
         </Button>
       </div>
@@ -470,20 +472,20 @@ export default function Home() {
       </div>
 
       <div className="grid grid-cols-3 gap-2">
-        <Button variant="primary" onClick={() => onCommit("cheapest")} disabled={busy || auto || !mandate}>
+        <Button variant="primary" onClick={() => onCommit("cheapest")} disabled={busy || auto || readOnly || !mandate}>
           Commit cheapest
         </Button>
-        <Button variant="warn" onClick={() => onCommit("overcap")} disabled={busy || auto || !mandate}>
+        <Button variant="warn" onClick={() => onCommit("overcap")} disabled={busy || auto || readOnly || !mandate}>
           Try over-cap
         </Button>
-        <Button variant="danger" onClick={() => onCommit("offlist")} disabled={busy || auto || !mandate}>
+        <Button variant="danger" onClick={() => onCommit("offlist")} disabled={busy || auto || readOnly || !mandate}>
           Try off-list
         </Button>
       </div>
 
       <button
         onClick={onEscalate}
-        disabled={busy || auto || !mandate}
+        disabled={busy || auto || readOnly || !mandate}
         className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:border-amber-500 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
       >
         ⤴ Escalate over-cap → request human approval
@@ -755,6 +757,16 @@ export default function Home() {
             {sidebar}
             <div className="min-w-0 flex-1">
               <div className="lg:hidden">{identityBar}</div>
+              {readOnly && (
+                <div className="mb-4 flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
+                  <span className="text-base">👀</span>
+                  <span>
+                    <span className="font-semibold">Read-only demo.</span> A recorded snapshot of real ledger
+                    output — actions are disabled. Run locally (<span className="font-mono">daml start</span> +{" "}
+                    <span className="font-mono">npm run dev</span>) for the full interactive ledger.
+                  </span>
+                </div>
+              )}
               <FlightBanner flight={flight} />
 
               {session === "cockpit" ? (
@@ -766,9 +778,11 @@ export default function Home() {
                         {auto ? `Running… step ${autoStep}/${DEMO_STEP_COUNT}` : "Guided demo"}
                       </div>
                       <div className="truncate text-xs text-neutral-300">
-                        {auto && autoStep > 0
-                          ? DEMO_CAPTIONS[autoStep - 1]
-                          : "Issue → commit → ledger rejects over-cap & off-list → escalate → approve → revoke. ~10s, all live."}
+                        {readOnly
+                          ? "Recorded snapshot — run locally for the live autopilot."
+                          : auto && autoStep > 0
+                            ? DEMO_CAPTIONS[autoStep - 1]
+                            : "Issue → commit → ledger rejects over-cap & off-list → escalate → approve → revoke. ~10s, all live."}
                       </div>
                       {auto && (
                         <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/15">
@@ -789,7 +803,8 @@ export default function Home() {
                     ) : (
                       <button
                         onClick={runDemo}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-400"
+                        disabled={readOnly}
+                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/20"
                       >
                         ▶ Play full demo
                       </button>
