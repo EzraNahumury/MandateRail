@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  daml:
+    name: Daml build & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Daml SDK
+        uses: actions/cache@v4
+        with:
+          path: ~/.daml
+          key: daml-sdk-2.10.4-${{ runner.os }}
+
+      - name: Install Daml SDK 2.10.4
+        run: |
+          curl -sSL https://get.daml.com/ | sh -s 2.10.4
+          echo "$HOME/.daml/bin" >> "$GITHUB_PATH"
+
+      - name: daml build
+        run: daml build
+
+      - name: daml test
+        run: daml test
+
+  frontend:
+    name: Frontend build & typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # NOTE: the Next.js build may fetch fonts over the network. If this step
+      # fails to reach Google Fonts (or another font CDN), that is an
+      # environmental/network issue, not a code defect.
+      - name: Build (next build)
+        run: npm run build
+
+      - name: Type-check (tsc --noEmit)
+        run: npx tsc --noEmit
