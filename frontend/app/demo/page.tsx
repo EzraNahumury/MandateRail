@@ -194,6 +194,17 @@ export default function Home() {
     };
   }, [refresh]);
 
+  // Deep-link straight into a party view, e.g. /demo?role=cockpit — handy for
+  // sharing a specific panel (and for the hosted snapshot URL landing in-cockpit).
+  useEffect(() => {
+    const r = new URLSearchParams(window.location.search).get("role");
+    const valid: Role[] = ["cockpit", "treasurer", "agent", "supplier", "supplier-b", "supplier-c", "regulator"];
+    if (r && (valid as string[]).includes(r)) {
+      const id = setTimeout(() => setSession(r as Role), 0);
+      return () => clearTimeout(id);
+    }
+  }, []);
+
   const run = useCallback(
     async (fn: () => Promise<void>) => {
       setBusy(true);

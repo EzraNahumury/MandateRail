@@ -87,11 +87,11 @@ MandateRail is the deliberate **inversion** of the "AI wrapper" trope the track 
 
 ![MandateRail landing](docs/diagrams/landing.png)
 
-**The cockpit — Treasurer · Buyer Agent · Supplier, live on a Canton sandbox**
+**The cockpit — Treasurer · Buyer Agent · Supplier · Regulator + live spend analytics, on a Canton sandbox**
 
 ![Four-panel cockpit with live ledger data](docs/diagrams/demo-cockpit.png)
 
-The Supplier panel proves the privacy claim *live*: **Mandate & budget: NOT VISIBLE** — the cap never reaches the supplier's node. In the Buyer Agent panel, **Commit cheapest** settles atomically while **Try over-cap** / **Try off-list** are rejected by the ledger (a real Daml precondition failure, not app code).
+One click on **▶ Play full demo** runs the whole story live. The Supplier panel proves the privacy claim *live* (**Mandate & budget: NOT VISIBLE**) and shows the DvP lifecycle (**Funded · awaiting delivery → Settled · paid**); the Buyer Agent's **Commit cheapest** settles while **Try over-cap** / **Try off-list** are rejected by the ledger (a real Daml precondition failure, not app code); the Regulator sees the audit trail + compliance matrix but never the cap.
 
 **Sign in — choose a Canton party (no browser wallet)**
 
